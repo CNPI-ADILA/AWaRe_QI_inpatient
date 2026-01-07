@@ -1,7 +1,7 @@
 
 # 📊 AWaRe Quality Indicators – Inpatient Dashboard 
 
-##### Overview 
+#### Overview 
 
 This repository hosts the AWaRe Quality Indicators (QI) Inpatient Dashboard, including: 
 
@@ -33,4 +33,10 @@ AWaRe_QI_Inpatient/
 ├──LICENSE  
 ├──README
 ```
+## Deployment
+
+
+## How to navigate the application
+The side menu allows you to switch between tabs, and the menu icon on the top allows you to collapse and expand the menu.
+![Side Menu](/examples/01_Dashboard_Landing_Page.png)
 
