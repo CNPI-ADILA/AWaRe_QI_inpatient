@@ -100,7 +100,7 @@ AWaRe_QI_Inpatient/
 
 <h2>🧪 Navigate Using Dummy Data</h2>
 
-<p>The <code>dummy_data/</code> folder provides example datasets that allow you to:</p>
+<p>The <code>data/</code> folder provides example datasets that allow you to:</p>
 <ul>
     <li>Explore all dashboard features</li>
     <li>Navigate across AWaRe indicators and conditions</li>
