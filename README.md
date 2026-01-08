@@ -35,8 +35,6 @@ AWaRe_QI_Inpatient/
 ├──README
 ```
 
-<h1>🚀 Dashboard Access</h1>
-
 <h2>🚀 Running the AWaRe QI Inpatient Dashboard Locally</h2>
 
 <ol>
