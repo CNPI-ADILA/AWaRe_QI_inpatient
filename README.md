@@ -43,7 +43,7 @@ AWaRe_QI_Inpatient/
   <li>
     <strong>Download the Repository</strong>
     <ul>
-      <li>Go to your GitHub repository: <a href="[Your GitHub URL]" target="_blank" rel="noopener noreferrer">[Your GitHub URL]</a></li>
+      <li>Go to your GitHub repository: <a href="https://github.com/CNPI-ADILA/AWaRe_QI_inpatient/tree/main" target="_blank" rel="noopener noreferrer">https://github.com/CNPI-ADILA/AWaRe_QI_inpatient/tree/main</a></li>
       <li>Click the <strong>Code</strong> button → <strong>Download ZIP</strong></li>
       <li>Extract the ZIP file to a folder on your computer (e.g., <code>C:/Projects/AWaRe_QI_Inpatient/</code>)</li>
     </ul>
