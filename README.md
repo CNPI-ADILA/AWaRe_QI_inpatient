@@ -17,17 +17,18 @@ The dashboard uses existing antimicrobial use (AMU) surveillance data, specifica
 
 Although the dashboard is built on the Global-PPS data structure, a Data Standardisation (Conversion) Guide is provided to enable facilities using other surveillance systems (e.g. WHO PPS) to adapt their data and benefit from the dashboard outputs. 
 
-##### Repository Structure  
+#### Repository Structure  
 ``` text
 AWaRe_QI_Inpatient/
-├──Markdown  
+├──Markdown_Report/
+├──Markdown_Script/  
 ├── R/
 │   └── modules/
 ├── www/
 │   └── css/
 │   └── js/     
 │   └── img/ 
-└── data/
+├──Data/
 ├──example/  
 ├──app.R  
 ├──LICENSE  
@@ -36,25 +37,65 @@ AWaRe_QI_Inpatient/
 
 <h1>🚀 Dashboard Access</h1>
 
-<h2>Run Locally (Recommended for Development)</h2>
-<p> download the </p>
+<h2>🚀 Running the AWaRe QI Inpatient Dashboard Locally</h2>
 
-<p>Clone the repository:</p>
-<pre><code>git clone https://github.com/CNPI-ADILA/AWaRe_QI_inpatient.git
-cd aware-inpatient-dashboard</code></pre>
+<ol>
+  <li>
+    <strong>Download the Repository</strong>
+    <ul>
+      <li>Go to your GitHub repository: <a href="[Your GitHub URL]" target="_blank" rel="noopener noreferrer">[Your GitHub URL]</a></li>
+      <li>Click the <strong>Code</strong> button → <strong>Download ZIP</strong></li>
+      <li>Extract the ZIP file to a folder on your computer (e.g., <code>C:/Projects/AWaRe_QI_Inpatient/</code>)</li>
+    </ul>
+  </li>
 
-<p>Open R or RStudio and install required packages:</p>
-<pre><code>install.packages(c(
+  <li>
+    <strong>Install R and RStudio</strong>
+    <ul>
+      <li>Install R: <a href="https://cran.r-project.org/" target="_blank" rel="noopener noreferrer">https://cran.r-project.org/</a></li>
+      <li>Install RStudio: <a href="https://www.rstudio.com/products/rstudio/download/" target="_blank" rel="noopener noreferrer">https://www.rstudio.com/products/rstudio/download/</a></li>
+    </ul>
+  </li>
+
+  <li>
+    <strong>Install Required Packages</strong>
+    <p>Open RStudio and run the following to install all required packages:</p>
+    <pre><code>install.packages(c(
   "shiny",
-  "tidyverse",
-  "lubridate",
-  "plotly",
+  "shinydashboard",
   "DT",
-  "shinythemes"
+  "plotly",
+  "dplyr",
+  "tidyverse",
+  "readxl",
+  "glue",
+  "purrr",
+  "tidyr",
+  "scales",
+  "htmltools",
+  "ggtext",
+  "forcats",
+  "kableExtra",
+  "shinythemes",
+  "shinyjs",
+  "readr",
+  "writexl",
+  "openxlsx"
 ))</code></pre>
+    <p>⚠️ Some packages like <code>ggtext</code>, <code>kableExtra</code>, or <code>shinyjs</code> may require additional system dependencies (fonts or JavaScript support). Follow the prompts if R asks for them.</p>
+  </li>
 
-<p>Run the dashboard:</p>
-<pre><code>shiny::runApp("inpatient_dashboard")</code></pre>
+  <li>
+    <strong>Open and Run the App</strong>
+    <ul>
+      <li>In RStudio, go to <strong>File → Open File</strong>, navigate to the extracted folder, and open <code>app.R</code></li>
+      <li>Run the app by clicking <strong>Run App</strong> in RStudio or using this command in the console:</li>
+    </ul>
+    <pre><code>shiny::runApp("C:/Projects/AWaRe_QI_Inpatient/")</code></pre>
+    <p>The dashboard will open in your default web browser at <a href="http://127.0.0.1:3838" target="_blank" rel="noopener noreferrer">http://127.0.0.1:xxxx/</a></p>
+  </li>
+</ol>
+
 
 
 <hr>
