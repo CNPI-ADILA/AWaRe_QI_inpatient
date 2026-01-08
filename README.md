@@ -23,11 +23,11 @@ To access and explore the <strong>live dashboard</strong>, you can do so here:
 👉 <a href="https://antibiotic-policy-group.shinyapps.io/AWaRe-QI-inpatient/" target="_blank" rel="noopener noreferrer"><strong>AWaRe QI Inpatient Dashboard</strong></a>
 </p>
 
+
 #### Repository Structure  
 ``` text
 AWaRe_QI_Inpatient/
-├──Markdown_Report/
-├──Markdown_Script/  
+├──Markdown_Report/  
 ├── R/
 │   └── modules/
 ├── www/
