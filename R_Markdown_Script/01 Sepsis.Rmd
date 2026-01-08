@@ -1,0 +1,1184 @@
+---
+title: "[1] Sepsis: WHO AWaRe QIs analysis against gPPS data"
+author: "CNPI AMR"
+date: "Last compiled on `r format(Sys.time(), '%A %d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+    theme: flatly
+    df_print: paged
+    highlight: tango
+    fig_width: 10
+    fig_height: 6
+    fig_caption: true
+    code_folding: hide
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+          
+          
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+  📊 Report Overview
+</h1>
+<p style="font-size: 1.15em; color: #444; margin-top: -0.4em; margin-bottom: 1em;">
+This report presents a summary of the AWaRe-based quality indicator analysis based on gPPS inpatient data for Sepsis.
+
+</p>
+
+This analytical script implements **WHO AWaRe (Access, Watch, Reserve)** antibiotic use **quality indicators (QIs)** for treating **undifferentiated sepsis** in adult inpatients with **community-acquired infections (CAIs)**. It utilises standardised data from the Global PPS (gPPS), specifically extracted from Excel-based outputs received by participating hospitals.
+
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+<strong>Clinical Sepsis of Unknown Origin</strong> (Based on WHO AWaRe book)<br>
+▸ <strong>gPPS diagnostic code:</strong> <code>SEPSIS</code><br>
+▸ <strong>gPPS definition:</strong> Sepsis of any origin (e.g., urosepsis, pulmonary sepsis, etc.), sepsis syndrome, or septic shock with no clear anatomic site, including candidemia with septic symptoms.
+</div>
+
+The aim is to assess the appropriateness of **empirical antibiotic prescribing** for sepsis, benchmarked against WHO AWaRe guidance, and to provide structured feedback at both the hospital and ward levels. These insights support **antimicrobial stewardship efforts** by highlighting patterns of suboptimal prescribing and identifying opportunities for targeted quality improvement.
+
+---
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+🎯 WHO AWaRe QIs for Sepsis
+</h2>
+
+
+Within the gPPS data structure, **two QIs** have been identified as applicable for evaluating sepsis-related empirical antibiotic prescriptions in adults with CAIs:
+
+
+**Case Definition:**
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+1. <strong>H_SEP_APPROP_ABX</strong>: Proportion of patients presenting with clinical sepsis of unknown origin given the appropriate IV antibiotics according to the <em>WHO AWaRe Book</em>.<br><br>
+2. <strong>H_SEP_APPROP_DOSAGE</strong>: Proportion of patients presenting with clinical sepsis of unknown origin prescribed the total daily dose of IV empiric antibiotics recommended in the <em>WHO AWaRe Book</em>.
+
+</div>
+---
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+💬 General Notes:
+</h2>
+
+- Analysis includes only **adult patients (≥18 years)** with **CAIs** on **empirical** treatment.
+
+- **Intravenous (IV) administration** was inferred using the gPPS `"Route"` code `"P"` (Parenteral), recognizing that it may include other parenteral routes but predominantly indicates IV use in empirical clinical practice.
+
+- QIs were mapped and interpreted based on clinical assumptions aligning WHO guidance with available gPPS diagnostic codes.
+
+
+---
+
+<div style="background-color: #fff4e5; border-left: 6px solid #ffc107; padding: 12px; margin-top: 10px;"> 💡 <strong>Reminder:</strong> Caution is advised when interpreting results from small sample sizes (<10 patients) </div> 
+
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+🔍  Initial Eligible Cases Check
+</h1>
+
+This section assesses whether there are enough eligible cases to support meaningful analysis.
+
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+# Clear global environment
+rm(list = ls())
+
+# Define required packages
+packages <- c(
+  "dplyr", 
+  "tidyverse", 
+  "readxl", 
+  "glue",
+  "purrr",
+  "tidyr",
+  "htmltools",
+  "scales",
+  "ggtext", 
+  "forcats",
+  "kableExtra"
+  )
+
+# Install missing packages
+new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
+if (length(new_packages)) install.packages(new_packages)
+
+# Load all packages
+invisible(lapply(packages, library, character.only = TRUE))
+
+
+# Import data
+data_info <- read_excel(
+  "HA-Global-PPS_example_dummy data.xlsx",
+  sheet = "Survey",
+  col_types = c("guess", "date", "guess", "date")  # to read dates 
+)
+data_deps <- read_excel("HA-Global-PPS_example_dummy data.xlsx", sheet = "Department forms")
+data_patients_all <- read_excel("HA-Global-PPS_example_dummy data.xlsx", sheet = "Patient forms")
+data_lookup <- read_excel("QIs-Lookup.xlsx")
+
+# Select the needed data and merge the sheets to create a simpler version.
+data_patients <- data_patients_all %>%
+  select("Survey Number", "Department name", "Age years", "Weight", "ATC5", "Single Unit Dose", "Unit", "N Doses/day", "Route", "AWaRe", "Diagnosis code", "Indication", "Treatment")
+
+
+# makes all empty spaces to N/A
+data_patients[data_patients==""]<-NA 
+
+data_patients <- data_patients %>%
+  mutate(
+    AWaRe = ifelse(
+      toupper(AWaRe) == "NOT_RECOMMENDED",
+      "NOT RECOMMENDED",
+      AWaRe
+    )
+  )
+
+AWaRe_abx <- c("ACCESS", "WATCH", "RESERVE", "NOT RECOMMENDED", "UNCLASSIFIED")
+
+# Filter eligible sepsis patients
+data_sepsis <- data_patients %>%
+  filter(`Diagnosis code` == "SEPSIS") %>%
+  mutate(
+    Route = toupper(Route),
+    AWaRe_compatible = (`Age years` >= 18 & Indication == "CAI" & Treatment == "EMPIRICAL" & AWaRe %in% AWaRe_abx)
+  ) 
+
+
+# Count eligible unique sepsis cases
+eligible_sepsis_n <- data_sepsis %>%
+  filter(AWaRe_compatible) %>%
+  distinct(`Survey Number`) %>%
+  nrow()
+
+
+# Format survey dates (assuming they are in row 3, col 2 and 4)
+survey_start <- format(data_info[[2]][3], "%d %b %Y")
+survey_end <- format(data_info[[4]][3], "%d %b %Y")
+
+# Build HTML feedback
+html_feedback <- HTML(glue(
+"<div style='background-color: #f0f8ff; border: 1px solid #add8e6; padding: 15px; border-radius: 5px; font-family: sans-serif;'>
+
+  <p style='margin-bottom: 10px;'>
+    <strong>📅 Survey period:</strong> {survey_start} to {survey_end}
+  </p>
+
+  <p>
+    This script applies <strong>WHO AWaRe Quality Indicators</strong> to adult inpatients with 
+    empirical antibiotics for community-acquired sepsis.
+  </p>
+
+  <ul>
+    <li><strong>Diagnostic code:</strong> SEPSIS (Clinical Sepsis of Unknown Origin)</li>
+    <li><strong>Total eligible cases:</strong> {eligible_sepsis_n}</li>
+  </ul>
+
+  {if(eligible_sepsis_n == 0){
+    '<div style=\"background-color:#fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 3px; margin-top: 10px;\">
+      <strong>️🚫 No data available:</strong> There were no eligible cases for evaluation during this survey period. Please verify data availability.
+    </div>'
+  } else if(eligible_sepsis_n < 10){
+    '<div style=\"background-color:#ffe0e0; border: 1px solid #ffb3b3; padding: 10px; border-radius: 3px; margin-top: 10px;\">
+      <strong>⚠️ Caution:</strong> Few eligible cases detected. Interpret results with caution.
+    </div>'
+  } else {
+    '<div style=\"background-color:#e0ffe0; border: 1px solid #b3ffb3; padding: 10px; border-radius: 3px; margin-top: 10px;\">
+      <strong>✅ Good to go!</strong> Sufficient eligible cases available to proceed with full evaluation.
+    </div>'
+  }}
+
+</div>"
+))
+
+# Render feedback
+browsable(html_feedback)
+
+
+
+```
+
+***
+
+<hr style="border-top: 3px dashed #28a745; margin-top: 25px; margin-bottom: 15px;">
+
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+🧾 Summary of Sepsis Eligible Patients for QI Assessment
+</h1>
+
+Eligible patients for **WHO AWaRe Quality Indicator (QI)** assessment are defined as **adult inpatients (≥18 years)** who received **empirical antibiotics** for **CA-SEPSIS**.
+
+This section presents both **prescription-level** and **patient-level** summaries to establish how much of the dataset is relevant for QI evaluation. It helps frame the proportion of all prescriptions that are relevant to CA-sepsis.
+
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+👥 Patient-Level Summary
+</h2>
+
+This table reports on unique patients in each eligibility group. It reflects the clinical burden of sepsis and the proportion of patients suitable for QI evaluation.
+
+<div style="background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 12px; margin-top: 10px;">
+
+<strong>📊 Summary:</strong><br>
+Total number of patients on antibiotics: <strong>`r data_patients %>% filter(AWaRe %in% AWaRe_abx) %>% distinct(.data[["Survey Number"]]) %>% nrow()`</strong><br>
+Total number of eligible patients on antibiotics: <strong>`r data_patients %>% filter(.data[["Age years"]] >= 18, Indication == "CAI", AWaRe %in% AWaRe_abx, Treatment == "EMPIRICAL", .data[["Diagnosis code"]] == "SEPSIS") %>% distinct(.data[["Survey Number"]]) %>% nrow()`</strong>
+
+</div>
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Total unique patients on antibiotics
+total_patients <- data_patients %>%
+  filter(AWaRe %in% AWaRe_abx) %>%
+  distinct(`Survey Number`) %>%
+  nrow()
+
+# Patient-level summary
+patient_summary <- data.frame(
+  Category = c(
+    "Number of adult patients (≥18 years) who received empirical antibiotic treatment for CAI",
+    "Number of all patients with a diagnosis of sepsis on any antibiotics",
+    "**Number of eligible patients:** Adult patients (≥18 years) with a diagnosis of CA-Sepsis who were treated empirically with antibiotics"
+  ),
+  Count = c(
+    data_patients %>%
+      filter(`Age years` >= 18, Indication == "CAI", Treatment == "EMPIRICAL", AWaRe %in% AWaRe_abx) %>%
+      distinct(`Survey Number`) %>%
+      nrow(),
+    data_patients %>%
+      filter(`Diagnosis code` == "SEPSIS", AWaRe %in% AWaRe_abx) %>%
+      distinct(`Survey Number`) %>%
+      nrow(),
+    data_patients %>%
+      filter(`Age years` >= 18, Indication == "CAI", Treatment == "EMPIRICAL", `Diagnosis code` == "SEPSIS", AWaRe %in% AWaRe_abx) %>%
+      distinct(`Survey Number`) %>%
+      nrow()
+  )
+) %>%
+  mutate(
+    Percent = sprintf("%.1f%%", 100 * Count / total_patients)
+  )
+
+# Show table
+knitr::kable(
+  patient_summary,
+  col.names = c("Patient Category", "Number of Patients", "Proportion of All Patients"),
+  format = "html",
+  align = "lcr"  # Left-align category, center number, right-align proportion
+) %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed"),
+    font_size = 13
+  ) %>%
+  kableExtra::column_spec(2:3, width = "8em") 
+```
+
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📑 Prescription-Level Summary
+</h2>
+
+<div style="background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 12px; margin-top: 10px;">
+
+<strong>📊 Summary:</strong><br>
+Total number of antibiotic prescriptions: <strong>`r data_patients %>% filter(AWaRe %in% AWaRe_abx) %>% nrow()`</strong><br>
+Total number of eligible antibiotic prescriptions: <strong>`r data_patients %>% filter(.data[["Age years"]] >= 18, Indication == "CAI", AWaRe %in% AWaRe_abx, Treatment == "EMPIRICAL", .data[["Diagnosis code"]] == "SEPSIS") %>% nrow()`</strong>
+
+</div>
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Total prescriptions
+total_prescriptions <- data_patients %>%
+  filter(AWaRe %in% AWaRe_abx) %>%
+  nrow()
+
+# Prescription summary table
+prescription_summary <- data.frame(
+  Category = c(
+    "Number of empirical antibiotic prescriptions administered to adult patients (≥18 years) for CAI",
+    "Number of all antibiotic prescriptions for patients diagnosed with sepsis",
+    "**Number of eligible antibiotic prescriptions:** antibiotics empirically prescribed for adult patients (≥18 years) with CA-Sepsis"
+  ),
+  Count = c(
+    data_patients %>% filter(`Age years` >= 18, Indication == "CAI", Treatment == "EMPIRICAL", AWaRe %in% AWaRe_abx) %>% nrow(),
+    data_patients %>% filter(`Diagnosis code` == "SEPSIS", AWaRe %in% AWaRe_abx) %>% nrow(),
+    data_patients %>% filter(`Age years` >= 18, Indication == "CAI", Treatment == "EMPIRICAL", `Diagnosis code` == "SEPSIS", AWaRe %in% AWaRe_abx) %>% nrow()
+  )
+) %>%
+  mutate(
+    Percent = sprintf("%.1f%%", 100 * Count / total_prescriptions)
+  )
+
+# Display table
+knitr::kable(
+  prescription_summary,
+  col.names = c("Prescription Category", "Number of Prescriptions", "Proportion of All Prescriptions"),
+  format = "html",
+  align = "lcr"  # Left-align category, center number, right-align proportion
+) %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed"),
+    font_size = 13
+  ) %>%
+  kableExtra::column_spec(2:3, width = "8em") 
+
+```
+
+***
+
+<hr style="border-top: 3px dashed #28a745; margin-top: 25px; margin-bottom: 15px;">
+
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📘 WHO AWaRe-QIs Overview
+</h1>
+This section evaluates two indicators:
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+1. <strong>H_SEP_APPROP_ABX</strong>: Proportion of patients presenting with clinical sepsis of unknown origin given the appropriate IV antibiotics according to the <em>WHO AWaRe Book</em>.<br><br>
+2. <strong>H_SEP_APPROP_DOSAGE</strong>: Proportion of patients presenting with clinical sepsis of unknown origin prescribed the total daily dose of IV empiric antibiotics recommended in the <em>WHO AWaRe Book</em>.
+
+</div>
+
+<div style="background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 12px; margin-top: 10px;">
+<strong>🔍 WHO AWaRe Book Recommendation:</strong><br><br>
+
+<strong>Primary IV antibiotics:</strong> Cefotaxime (2 g q8h) <em>OR</em> Ceftriaxone (2 g q24h)<br>
+<strong>Secondary IV antibiotics:</strong> Amikacin (15 mg/kg q24h) <em>OR</em> Gentamicin (5 mg/kg q24h)<br>
+<em> <strong>The recommended regimen </strong>: A combination of one primary + one secondary antibiotic</em>
+</div>
+
+<div style="background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 12px; margin-top: 10px; margin-bottom: 18px;">
+<strong>📘 WHO AWaRe Notes:</strong>
+<ul>
+  <li>Bacteraemia is not part of the definition of sepsis. While many patients with sepsis have bacteraemia, most patients with bacteraemia do not fulfill sepsis criteria.</li>
+  <li>Bacteria, viruses, fungi, and protozoa can cause sepsis (only sepsis of bacterial origin is addressed here).</li>
+  <li>Start IV antibiotics as soon as possible if sepsis is suspected. Test results should not delay antibiotics.</li>
+  <li>To choose the best empiric treatment, consider the most likely infection site and pathogens, local prevalence of resistance, comorbidities, and risk of multidrug-resistant organisms.</li>
+  <li>Narrow empiric treatment based on culture results or clinical improvement.</li>
+  <li>Step down to oral treatment is based on improvement of symptoms, signs of infection, and the ability to take oral antibiotics.</li>
+  <li>Amikacin (and to a lesser extent gentamicin) retain activity against ESBL-producing strains and can be considered a carbapenem-sparing option.</li>
+  <li>All dosages recommended in the AWaRe Book are based on normal renal function.</li>
+</ul>
+</div>
+
+
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+# Data Preparation: Sepsis Antibiotic Choice Appropriateness Classification
+
+# Filter relevant sepsis data
+data_sepsis <- data_patients %>%
+  filter(`Diagnosis code` == "SEPSIS") %>%
+  mutate(
+    Route = toupper(Route),
+    AWaRe_compatible = ifelse(
+      `Age years` >= 18 & Indication == "CAI" & Treatment == "EMPIRICAL" & AWaRe %in% AWaRe_abx,
+      TRUE, FALSE
+    )
+  )
+
+# Lookup recommended drug names for sepsis QI
+lookup_names <- data_lookup %>%
+  filter(Code == "H_SEP_APPROP_ABX") %>%
+  select(starts_with("ABX-ATC")) %>%
+  unlist(use.names = FALSE)
+
+# Summarise patient-level IV antibiotic usage
+patient_summary_sepsis <- data_sepsis %>%
+  filter(AWaRe_compatible) %>%
+  group_by(`Survey Number`, `Department name`) %>%
+  summarise(
+    Abx_names = list(unique(ATC5[Route == "P"])),
+    Match_1_P = any(ATC5 == lookup_names[1] & Route == "P"),
+    Match_2_P = any(ATC5 == lookup_names[2] & Route == "P"),
+    Match_3_P = any(ATC5 == lookup_names[3] & Route == "P"),
+    Match_4_P = any(ATC5 == lookup_names[4] & Route == "P"),
+    Any_Oral = any(Route == "O"),
+    Any_IV = any(Route == "P"),
+    N_P = sum(Route == "P"),
+    .groups = "drop"
+  ) %>%
+  rowwise() %>%
+  mutate(
+    Num_recommended_given = sum(c_across(Match_1_P:Match_4_P)),
+    All_IV_names_flat = paste0(unlist(Abx_names), collapse = ","),
+
+    Received_full_recommended_IV = (
+      (Match_1_P & Match_3_P) |
+      (Match_1_P & Match_4_P) |
+      (Match_2_P & Match_3_P) |
+      (Match_2_P & Match_4_P)
+    ) &
+    Num_recommended_given == 2 & N_P == 2,
+
+    Received_no_recommended_IV = Any_IV & !(Match_1_P | Match_2_P | Match_3_P | Match_4_P),
+
+    Received_partial_recommended_IV = Any_IV & !Received_full_recommended_IV & !Received_no_recommended_IV,
+
+    Received_oral_only = Any_Oral & !Received_full_recommended_IV & !Received_partial_recommended_IV & !Received_no_recommended_IV,
+
+    Other_non_IV_or_oral = !Received_full_recommended_IV & !Received_partial_recommended_IV & !Received_no_recommended_IV & !Received_oral_only
+  ) %>%
+  ungroup()
+
+
+# Identify ineligible patients
+not_eligible_patients <- data_sepsis %>%
+  group_by(`Survey Number`, `Department name`) %>%
+  summarise(Ineligible = all(AWaRe_compatible == FALSE), .groups = "drop") %>%
+  filter(Ineligible)
+
+# Reshape to long format
+eligible_long_sepsis <- patient_summary_sepsis %>%
+  select(
+    `Survey Number`, `Department name`,
+    Received_full_recommended_IV,
+    Received_partial_recommended_IV,
+    Received_oral_only,
+    Received_no_recommended_IV,
+    Other_non_IV_or_oral
+  ) %>%
+  pivot_longer(
+    cols = -c(`Survey Number`, `Department name`),
+    names_to = "Indicator",
+    values_to = "Value"
+  ) %>%
+  filter(Value) %>%
+  group_by(`Department name`, Indicator) %>%
+  summarise(Patients = n(), .groups = "drop")
+
+# Generate full department-indicator grid
+all_combos <- expand_grid(
+  `Department name` = unique(patient_summary_sepsis$`Department name`),
+  Indicator = c(
+    "Received_full_recommended_IV",
+    "Received_partial_recommended_IV",
+    "Received_oral_only",
+    "Received_no_recommended_IV",
+    "Other_non_IV_or_oral",
+    "Not_Eligible"
+  )
+)
+
+# Add ineligible data
+ineligible_summary <- not_eligible_patients %>%
+  count(`Department name`) %>%
+  mutate(Indicator = "Not_Eligible") %>%
+  rename(Patients = n)
+
+qi_long <- bind_rows(eligible_long_sepsis, ineligible_summary)
+
+# Fill missing combinations
+qi_long <- all_combos %>%
+  left_join(qi_long, by = c("Department name", "Indicator")) %>%
+  mutate(Patients = replace_na(Patients, 0))
+
+# Compute totals and proportions
+dept_totals <- qi_long %>%
+  group_by(`Department name`) %>%
+  summarise(Total = sum(Patients), .groups = "drop")
+
+qi_summary_sepsis <- qi_long %>%
+  left_join(dept_totals, by = "Department name") %>%
+  mutate(
+    Indicator = case_when(
+      Indicator == "Received_full_recommended_IV" ~ "Received recommended IV antibiotics",
+      Indicator == "Received_partial_recommended_IV" ~ "Partially received recommended IV antibiotics",
+      Indicator == "Received_no_recommended_IV" ~ "Received IV antibiotics not among recommended options",
+      Indicator == "Received_oral_only" ~ "Received oral antibiotics",
+      Indicator == "Other_non_IV_or_oral" ~ "Received other non-IV/oral antibiotics",
+      Indicator == "Not_Eligible" ~ "Not eligible for AWaRe sepsis QIs",
+      TRUE ~ Indicator
+    ),
+    Proportion = round(Patients / Total, 3)
+  )
+
+# Add Hospital-Wide summary
+hospital_row <- qi_summary_sepsis %>%
+  group_by(Indicator) %>%
+  summarise(Patients = sum(Patients), .groups = "drop") %>%
+  mutate(`Department name` = "Hospital-Wide") %>%
+  group_by(`Department name`) %>%
+  mutate(Total = sum(Patients), Proportion = Patients / Total) %>%
+  ungroup()
+
+# Final output
+qi_summary_sepsis <- bind_rows(qi_summary_sepsis, hospital_row) %>%
+  arrange(`Department name`, Indicator)
+
+```
+
+
+<hr style="border-top: 3px dashed #28a745; margin-top: 25px; margin-bottom: 15px;">
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📌 Indicator 1 – IV Antibiotic Choice Appropriateness 
+</h1>
+
+> **H_SEP_APPROP_ABX:** Proportion of patients presenting with clinical sepsis of unknown origin given the appropriate IV antibiotics according to the WHO AWaRe Book.
+
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈 Antibiotic Choice Appropriateness for Sepsis
+</h2>
+
+This visual summarises the proportion of treatment appropriateness for sepsis across hospital departments based on WHO AWaRe Book
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6}
+
+# Define color and label lookup
+indicator_labels <- c(
+  "Received_full_recommended_IV"     = "Received recommended IV antibiotics",
+  "Received_partial_recommended_IV"  = "Partially received recommended IV antibiotics",
+  "Received_no_recommended_IV"       = "Received IV antibiotics not among recommended options",
+  "Received_oral_only"               = "Received oral antibiotics",
+  "Other_non_IV_or_oral"       = "Received other non-IV/oral antibiotics",
+  "Not_Eligible"                     = "Not eligible for AWaRe sepsis QIs"
+)
+
+drug_choice_colors <- c(
+  "Received recommended IV antibiotics"      = "#1F77B4",
+  "Partially received recommended IV antibiotics" = "#4FA9DC",
+  "Received IV antibiotics not among recommended options"    = "#EF476F",
+  "Received oral antibiotics"                     = "#F9D99E",
+  "Received other non-IV/oral antibiotics"        = "#D3D3D3",
+  "Not eligible for AWaRe sepsis QIs"             = "#A9A9A9"
+)
+
+# Prepare plotting variable with bold/colored hospital label
+qi_summary_sepsis<- qi_summary_sepsis %>%
+  mutate(
+    PlotLabel = ifelse(
+      `Department name` == "Hospital-Wide",
+      "<b style='color:#0072B2;'>Hospital-Wide</b>",
+      `Department name`
+    ),
+    PlotLabel = factor(
+      PlotLabel,
+      levels = c("<b style='color:#0072B2;'>Hospital-Wide</b>",
+                 sort(setdiff(unique(`Department name`), "Hospital-Wide-Wide")))
+    ),
+    Indicator = factor(
+      Indicator,
+      levels = c(
+        "Received recommended IV antibiotics",
+        "Partially received recommended IV antibiotics",
+        "Received IV antibiotics not among recommended options",
+        "Received oral antibiotics",
+        "Received other non-IV/oral antibiotics",
+        "Not eligible for AWaRe sepsis QIs"
+      )
+    )
+  )
+
+# Plot
+ggplot(qi_summary_sepsis, aes(x = PlotLabel, y = Proportion, fill = Indicator)) +
+  annotate("rect", xmin = 0.5, xmax = 1.5, ymin = 0, ymax = 1, fill = "gray95", alpha = 0.5) +
+  geom_bar(stat = "identity", position = "fill", width = 0.85) +
+  geom_text(
+    aes(label = ifelse(Patients > 0, Patients, "")),
+    position = position_fill(vjust = 0.5),
+    size = 3, color = "black"
+  ) +
+  geom_text(
+    data = qi_summary_sepsis %>% distinct(PlotLabel, Total),
+    aes(x = PlotLabel, y = 1.05, label = paste0("n=", Total)),
+    inherit.aes = FALSE,
+    size = 3, color = "gray30", hjust = 0.6
+  ) +
+  scale_fill_manual(values = drug_choice_colors, labels = indicator_labels) +
+  scale_y_continuous(limits = c(0, 1.09), expand = c(0, 0)) +
+  labs(
+    title = "Antibiotic Choice Appropriateness Summary for Sepsis",
+    subtitle = "Each bar shows distribution of appropriateness against WHO AWaRe guidelines (n = raw patient counts)",
+    x = "Department",
+    y = "Proportional Stacked Bars",
+    fill = "Treatment Appropriateness Category"
+  ) +
+  theme_minimal(base_size = 8) +
+  theme(
+    axis.text.x = element_markdown(size = 8, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(face = "bold", size = 10),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", size = 8),
+    legend.text = element_text(size = 8, margin = margin(b = 4)),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 10),
+    plot.subtitle = element_text(hjust = 0.5, size = 7, color = "gray30"),
+    panel.border = element_rect(color = "gray70", fill = NA, size = 0.8),
+    plot.margin = margin(10, 10, 10, 10)
+  ) +
+  guides(
+    fill = guide_legend(nrow = 6, byrow = FALSE, title.position = "top")
+  )
+
+
+```
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📝 Summary of Antibiotic Choice Appropriateness for Sepsis
+</h2>
+
+This section assesses whether adult inpatients with CA-sepsis were prescribed the appropriate empirical IV antibiotic regimen based on the WHO AWaRe Antibiotic Book.
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+# Total eligible patients for IV-focused QI
+total_eligible <- qi_summary_sepsis %>%
+  filter(`Department name` != "Hospital-Wide") %>%
+  filter(!Indicator %in% c("Not eligible for AWaRe sepsis QIs")) %>%
+  summarise(Total = sum(Patients, na.rm = TRUE)) %>%
+  pull(Total)
+
+total_iv <- qi_summary_sepsis %>%
+  filter(`Department name` != "Hospital-Wide") %>%
+  filter(Indicator %in% c(
+    "Received recommended IV antibiotics",
+    "Partially received recommended IV antibiotics",
+    "Received IV antibiotics not among recommended options"
+  )) %>%
+  summarise(Total = sum(Patients, na.rm = TRUE)) %>%
+  pull(Total)
+
+# Filter only relevant indicators
+relevant_data <- qi_summary_sepsis %>%
+  filter(Indicator %in% c(
+    "Received recommended IV antibiotics",
+    "Partially received recommended IV antibiotics",
+    "Received IV antibiotics not among recommended options"
+  ))
+
+# If no relevant data, display a user-friendly message
+if (nrow(relevant_data) == 0) {
+  final_summary_html <- HTML(glue::glue(
+    "<div style='background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 14px; margin-top: 10px;'>
+    ⚠️ <strong>No summary available</strong> — there are currently no eligible patients for assessing IV antibiotic choice appropriateness for community-acquired sepsis.<br><br>
+    <em>This may indicate that no patients received IV antibiotics, or that none met the inclusion criteria during the reporting period.</em>
+    </div>"
+  ))
+  htmltools::browsable(final_summary_html)
+
+} else {
+  # Summarise proportions per group
+  summary_data_sepsis <- relevant_data %>%
+    group_by(`Department name`, Indicator) %>%
+    summarise(Patients = sum(Patients), .groups = "drop") %>%
+    pivot_wider(
+      names_from = Indicator,
+      values_from = Patients,
+      values_fill = 0
+    ) %>%
+    mutate(
+      Total = `Received recommended IV antibiotics` +
+              `Partially received recommended IV antibiotics` +
+              `Received IV antibiotics not among recommended options`,
+      Prop_Full = `Received recommended IV antibiotics` / Total,
+      Prop_Partial = `Partially received recommended IV antibiotics` / Total,
+      Prop_None = `Received IV antibiotics not among recommended options` / Total
+    ) %>%
+    filter(Total > 0)
+
+  # If after pivot there’s still nothing to show
+  if (nrow(summary_data_sepsis) == 0) {
+    final_summary_html <- HTML(glue::glue(
+      "<div style='background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 14px; margin-top: 10px;'>
+    ⚠️ <strong>No summary available</strong> — there are currently no eligible patients for assessing IV antibiotic choice appropriateness for community-acquired sepsis.<br><br>
+    <em>This may indicate that no patients received IV antibiotics, or that none met the inclusion criteria during the reporting period.</em>
+      </div>"
+    ))
+    htmltools::browsable(final_summary_html)
+
+  } else {
+    # Intro explanation block
+    intro_text <- glue::glue(
+      "<div style='background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 14px; margin-top: 10px; margin-bottom: 10px;'>
+      💉 <strong>Denominator:</strong> Number of eligible patients who received any IV antibiotics for sepsis (<strong>{total_iv}</strong> out of <strong>{total_eligible}</strong>).
+      </div><br><br>
+      <strong>Summary:</strong><br><br>"
+    )
+
+    # Format blocks for display
+    formatted_blocks <- summary_data_sepsis %>%
+      mutate(block = pmap_chr(
+        list(
+          `Department name`,
+          Prop_Full, `Received recommended IV antibiotics`,
+          Prop_Partial, `Partially received recommended IV antibiotics`,
+          Prop_None, `Received IV antibiotics not among recommended options`,
+          Total
+        ),
+        function(dept, full_p, full_n, part_p, part_n, none_p, none_n, total_n) {
+          color <- if (dept == "Hospital-Wide") "#0072B2" else "#6c757d"
+          bg <- if (dept == "Hospital-Wide") "#f0f0f0" else "#ffffff"
+
+          glue::glue(
+            "<div style='background-color: {bg}; border-left: 5px solid {color}; padding: 14px; margin-bottom: 20px;'>
+            <strong>🏥 {dept}</strong> <span style='color: #888;'>(n = {total_n} patients)</span><br><br>
+
+            <ul style='margin-left: 1.2em; line-height: 1.7; padding-left: 0; list-style-type: none;'>
+              <li>✅ <strong>Received recommended IV antibiotics</strong> (as per WHO AWaRe Book): <strong>{scales::percent(full_p, accuracy = 0.1)}</strong> ({full_n} out of {total_n})</li>
+              <li>⚠️ <strong>Partially received recommended IV antibiotics</strong> (as per WHO AWaRe Book): <strong>{scales::percent(part_p, accuracy = 0.1)}</strong> ({part_n} out of {total_n})</li>
+              <li>❌ <strong>Received IV antibiotics not among recommended options</strong> (as per WHO AWaRe Book): <strong>{scales::percent(none_p, accuracy = 0.1)}</strong> ({none_n} out of {total_n})</li>
+            </ul>
+            </div>"
+          )
+        }
+      ))
+
+    # Reorder for Hospital-Wide first
+    formatted_blocks <- formatted_blocks %>%
+      mutate(order = ifelse(`Department name` == "Hospital-Wide", 0, 1)) %>%
+      arrange(order, `Department name`) %>%
+      select(-order)
+
+    # Combine into HTML
+    final_summary_html <- HTML(paste0(intro_text, paste(formatted_blocks$block, collapse = "\n")))
+    htmltools::browsable(final_summary_html)
+  }
+}
+
+
+```
+
+***
+<div style='background-color: #f8f9fa; padding: 10px; border-left: 5px solid #17a2b8;'>
+  <strong>💡 Note:</strong>
+  <ul style='margin-top: 8px; padding-left: 20px; line-height: 1.6;'>
+     <li><strong>The partially recommended category</strong> refers to cases where patients received only part of the recommended antibiotic regimen. This could mean just one of the two recommended antibiotics was given, or the recommended antibiotics were combined with others not part of the regimen. </li>    
+     <br>
+    <li>Secondary antibiotics (<strong>Amikacin</strong> or <strong>Gentamicin</strong>) are recommended to be used in combination with primary agents (<strong>Cefotaxime</strong> or <strong>Ceftriaxone</strong>) to achieve bactericidal synergy, broaden the spectrum of treatment activity, prevent the emergence of resistance, and induce a lasting inhibition of bacterial growth.</li> 
+  </ul>
+</div>
+
+  
+***
+<hr style="border-top: 3px dashed #28a745; margin-top: 25px; margin-bottom: 15px;">
+
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📌 Indicator 2 – IV Antibiotic Dosage Appropriateness
+</h1>
+
+
+> **H_SEP_APPROP_DOSAGE:** Proportion of patients presenting with clinical sepsis of unknown origin prescribed the total daily dose of IV empiric antibiotics recommended in the WHO AWaRe Antibiotic Book.
+
+
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# 🛠 Data Preparation: Evaluating Dosage Appropriateness
+# Filter Sepsis Patients and Add AWaRe Eligibility
+data_sepsis2 <- data_patients %>%
+  filter(`Diagnosis code` == "SEPSIS") %>%
+  mutate(
+    Route = toupper(Route),
+    AWaRe_compatible = ifelse(
+      `Age years` >= 18 & Indication == "CAI" & Treatment == "EMPIRICAL" & AWaRe %in% AWaRe_abx,
+      TRUE, FALSE
+    )
+  )
+
+data_sepsis2 <- data_sepsis2 %>%
+  mutate(Weight = as.numeric(Weight))
+
+# Lookup Drug & Dose Info for H_SEP_APPROP_DOSAGE
+lookup2 <- data_lookup %>% filter(Code == "H_SEP_APPROP_DOSAGE")
+lookup_names2 <- unlist(lookup2[1, c("ABX-ATC-1", "ABX-ATC-2", "ABX-ATC-3", "ABX-ATC-4")], use.names = FALSE)
+lookup_names2 <- toupper(trimws(lookup_names2))
+
+# Compute Total Daily Dose for each row in data_sepsis2
+data_sepsis2 <- data_sepsis2 %>%
+  mutate(
+    Unit_Factor = case_when(
+      Unit == "mg" ~ 1,
+      Unit == "g" ~ 1000,
+      TRUE ~ NA_real_
+    ),
+    Total_Daily_Dose = as.numeric(`Single Unit Dose`) * as.numeric(`N Doses/day`) * Unit_Factor
+  )
+
+# Match Drug + Dose + Route for ABX-ATC-1 to 4
+for (i in 1:4) {
+  name_col <- paste0("ABX-ATC-", i)
+  dose_col <- paste0("ABX-DOSE-", i)
+  freq_col <- paste0("ABX-DAY-DOSE-", i)
+  unit_col <- paste0("ABX-UNIT-", i)
+
+  dose_match_col <- paste0("Match_Drug_Dose_", i)
+
+  # Lookup values
+  drug_lookup <- toupper(trimws(lookup2[[name_col]]))
+  unit_value <- lookup2[[unit_col]]
+  dose <- as.numeric(lookup2[[dose_col]])
+  freq <- as.numeric(lookup2[[freq_col]])
+
+  # Convert units to mg
+  unit_factor <- case_when(
+    unit_value == "mg" ~ 1,
+    unit_value == "g" ~ 1000,
+    unit_value == "mg/kg" ~ 1,
+    TRUE ~ NA_real_
+  )
+
+  # Expected dose
+  expected_dose <- if (!is.na(unit_value) && unit_value == "mg/kg") {
+    dose * freq * data_sepsis2$Weight * unit_factor
+  } else {
+    dose * freq * unit_factor
+  }
+  
+  # Expected dose & match against actual dose with tolerance for mg/kg
+data_sepsis2[[dose_match_col]] <- ifelse(
+  data_sepsis2$ATC5 == drug_lookup &
+  (
+    # Use ±10% tolerance if mg/kg
+    if (!is.na(unit_value) && unit_value == "mg/kg") {
+      abs(data_sepsis2$Total_Daily_Dose - expected_dose) / expected_dose <= 0.10
+    } else {
+      abs(data_sepsis2$Total_Daily_Dose - expected_dose) < 1  # strict match for others
+    }
+  ),
+  TRUE, FALSE
+)}
+
+# Summarise at Patient Level with simplified classification
+patient_summary <- data_sepsis2 %>%
+  filter(AWaRe_compatible) %>%
+  group_by(`Survey Number`, `Department name`) %>%
+  summarise(
+    Match_1_P = any(ATC5 == lookup_names2[1] & Route == "P"),
+    Match_2_P = any(ATC5 == lookup_names2[2] & Route == "P"),
+    Match_3_P = any(ATC5 == lookup_names2[3] & Route == "P"),
+    Match_4_P = any(ATC5 == lookup_names2[4] & Route == "P"),
+
+    Dose_1_OK = any(Match_Drug_Dose_1),
+    Dose_2_OK = any(Match_Drug_Dose_2),
+    Dose_3_OK = any(Match_Drug_Dose_3),
+    Dose_4_OK = any(Match_Drug_Dose_4),
+
+    Any_IV = any(Route == "P"),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Given_Primary   = Match_1_P | Match_2_P,
+    Given_Secondary = Match_3_P | Match_4_P,
+    Primary_OK      = Dose_1_OK | Dose_2_OK,
+    Secondary_OK    = Dose_3_OK | Dose_4_OK,
+    Any_Recommended_IV_Given = Given_Primary | Given_Secondary,
+
+    Dose_Result = case_when(
+      # Category 1: Fully recommended recommended IV antibiotics
+      Given_Primary & Given_Secondary & Primary_OK & Secondary_OK ~ 
+        "Received recommended IV antibiotics with recommended dosage",
+
+      # Category 2: At least one recommended received IV antibiotic with recommended dose
+      Any_Recommended_IV_Given & (Primary_OK | Secondary_OK) ~ 
+        "Received at least one recommended IV antibiotic with only one has recommended dosage",
+
+      # Category 3: At least one recommended IV antibiotic with no recommended dose
+      Any_Recommended_IV_Given & !Primary_OK & !Secondary_OK ~ 
+        "Received at least one recommended IV antibiotic with none have recommended dosage",
+
+      # Category 4: No recommended IV antibiotics given at all
+      Any_IV & !Any_Recommended_IV_Given ~ 
+        "Received IV antibiotics not among recommended options",
+
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(Dose_Result))
+
+
+# Create Summary Table by Department (with 0s for missing combos)
+all_categories <- unique(patient_summary$Dose_Result)
+
+iv_dose_counts <- patient_summary %>%
+  group_by(`Department name`, Dose_Result) %>%
+  summarise(Patients = n(), .groups = "drop")
+
+all_combos2 <- expand_grid(
+  `Department name` = unique(patient_summary$`Department name`),
+  Dose_Result = all_categories
+)
+
+iv_dose_summary <- all_combos2 %>%
+  left_join(iv_dose_counts, by = c("Department name", "Dose_Result")) %>%
+  mutate(Patients = replace_na(Patients, 0)) %>%
+  group_by(`Department name`) %>%
+  mutate(
+    Total = sum(Patients),
+    Proportion = round(100 * Patients / Total, 1)
+  ) %>%
+  ungroup()
+
+# Add Hospital-Wide Summary Row
+hospital_row <- iv_dose_summary %>%
+  group_by(Dose_Result) %>%
+  summarise(Patients = sum(Patients), .groups = "drop") %>%
+  mutate(`Department name` = "Hospital-Wide") %>%
+  group_by(`Department name`) %>%
+  mutate(
+    Total = sum(Patients),
+    Proportion = round(100 * Patients / Total, 1)
+  ) %>%
+  ungroup()
+
+# Combine and Sort Final Output
+final_summary2 <- bind_rows(iv_dose_summary, hospital_row) %>%
+  arrange(`Department name`, Dose_Result)
+
+```
+
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈 Antibiotic Choice & Dosage Appropriateness for Sepsis
+</h2>
+
+This visual summarises choice & dosage appropriateness for sepsis across hospital departments based on WHO AWaRe Book
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6}
+
+# Define all Dose_Result categories (for legend and completeness)
+all_categories2 <- c(
+  "Received recommended IV antibiotics with recommended dosage",
+  "Received at least one recommended IV antibiotic with only one has recommended dosage",
+  "Received at least one recommended IV antibiotic with none have recommended dosage",
+  "Received IV antibiotics not among recommended options"
+)
+
+
+# Set Dose_Result as an ordered factor
+final_summary2$Dose_Result <- factor(final_summary2$Dose_Result, levels = all_categories2)
+
+# Fill in all missing Department × Category combos (0 patients)
+complete_summary <- expand_grid(
+  `Department name` = unique(final_summary2$`Department name`),
+  Dose_Result = all_categories2
+) %>%
+  left_join(final_summary2, by = c("Department name", "Dose_Result")) %>%
+  mutate(
+    Patients = replace_na(Patients, 0),
+    Total = ave(Patients, `Department name`, FUN = sum),
+    Proportion = ifelse(Total == 0, 0, round(100 * Patients / Total, 1)),
+    Dose_Result = factor(Dose_Result, levels = all_categories2)  # reset levels again
+  )
+
+# Format Department labels
+complete_summary <- complete_summary %>%
+  mutate(
+    PlotLabel = ifelse(`Department name` == "Hospital-Wide",
+                       "<b style='color:#0072B2;'>Hospital-Wide</b>",
+                       `Department name`),
+    PlotLabel = factor(PlotLabel, levels = c("<b style='color:#0072B2;'>Hospital-Wide</b>",
+                                             sort(setdiff(unique(`Department name`), "Hospital-Wide"))))
+  )
+
+# Plot
+ggplot(complete_summary, aes(x = PlotLabel, y = Proportion, fill = Dose_Result)) +
+  annotate("rect", xmin = 0.5, xmax = 1.5, ymin = 0, ymax = 1, fill = "gray95", alpha = 0.5) +
+  geom_bar(stat = "identity", position = "fill", width = 0.85) +
+  geom_text(aes(label = ifelse(Proportion > 5, paste0(Proportion, "%"), "")),
+            position = position_fill(vjust = 0.5),
+            size = 3, color = "black") +
+  geom_text(
+    data = complete_summary %>% distinct(PlotLabel, Total),
+    aes(x = PlotLabel, y = 1.015, label = paste0("n=", Total)),
+    inherit.aes = FALSE,
+    size = 3, color = "gray30", hjust = 0
+  ) +
+scale_fill_manual(
+  values = c(
+    "Received recommended IV antibiotics with recommended dosage" = "#084594",
+    "Received at least one recommended IV antibiotic with only one has recommended dosage" = "#6BAED6",
+    "Received at least one recommended IV antibiotic with none have recommended dosage" = "#FC9272",
+    "Received IV antibiotics not among recommended options" = "#D3D3D3"
+  ),
+  drop = FALSE
+) +
+  coord_flip(ylim = c(0, 1.05)) +
+  labs(
+    title = "Antibiotic Choice and Dosage Appropriateness for Sepsis Cases",
+    subtitle = "Categories reflect combined appropriateness of antibiotic choice and dosage (n = raw patient counts)",
+    x = "Department",
+    y = "Proportional Stacked Bars",
+    fill = "Treatment Classification"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(
+    axis.text.y = ggtext::element_markdown(size = 8),
+    axis.title = element_text(face = "bold"),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(margin = margin(r = 2)),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 10),
+    plot.subtitle = element_text(hjust = 0.5, size = 8, color = "gray30"),
+    panel.border = element_rect(color = "gray70", fill = NA, size = 0.8),
+    plot.margin = margin(10, 80, 10, 10)
+  ) +
+  guides(
+    fill = guide_legend(nrow = 4, byrow = F, title.position = "top")
+  )
+
+
+```
+ 
+<div style="background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 12px; margin-top: 10px;">
+  <strong>💡 Notes:</strong>
+  <ul style='margin-top: 8px; padding-left: 20px; line-height: 1.6;'>
+    <li><strong>Received recommended IV antibiotics with recommended dosage</strong> indicates that the full recommended treatment regimen was given, with both dosages aligned with WHO AWaRe Book guidance.</li>  <br>
+    <li><strong>Received at least one recommended IV antibiotic with one has recommended dosage</strong> refers to cases where only part of the recommended dual therapy was given, and only one antibiotic was at the recommended dosage. </li> <br>
+    <li><strong>Received at least one recommended IV antibiotic with none have recommended dosage</strong> includes cases who received either the full recommended regimen with no recommended dosages, or only part of it (e.g., one agent from the dual therapy) with none of the dosages aligned with WHO AWaRe Book guidance. </li> 
+  </ul>
+</div>
+---
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📝 Summary of Antibiotic Choice & Dosage Appropriateness for sepsis
+</h2>
+This section evaluates the **appropriateness of IV antibiotic drug dosage** for patients with CA-sepsis, in line with the WHO AWaRe Book
+
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE, fig.dim = c(8, 6)}
+# Exclude Hospital-Wide for total count
+final_summary2_sep_filtered <- final_summary2 %>%
+  filter(`Department name` != "Hospital-Wide",
+         Dose_Result != "Received IV antibiotics not among recommended options")
+
+# Calculate total eligible patients
+total_approp_iv_given <- final_summary2_sep_filtered %>%
+  summarise(Total = sum(Patients, na.rm = TRUE)) %>%
+  pull(Total)
+
+# Handle case with no eligible patients
+if (total_approp_iv_given == 0 || is.na(total_approp_iv_given)) {
+  final_summary_html2 <- HTML(glue::glue(
+    "<div style='background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 14px; margin-top: 10px;'>
+    ⚠️ <strong>No summary available</strong> — there are currently no eligible patients for evaluating the <strong>appropriateness of IV antibiotic dosage</strong> for community-acquired sepsis. <br><br>
+   <em>  This may indicate that no patients met the inclusion criteria, or no patients received recommended IV antibiotics during the reporting period. </em>
+    </div>"
+  ))
+  htmltools::browsable(final_summary_html2)
+} else {
+  # Intro text card
+  intro_text2 <- glue::glue(
+    "<div style='background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 14px; margin-top: 10px; margin-bottom: 10px;'>
+    💊 <strong>Denominator:</strong> Number of eligible sepsis patients who received recommended (<em>or partially recommended</em>) IV antibiotic choice based on WHO AWaRe Book (<strong>{total_approp_iv_given}</strong> out of {total_eligible})
+    </div><br><br>
+    <strong>Summary:</strong><br><br>"
+  )
+
+  # Dose_Result categories (excluding non-recommended group)
+  all_categories2 <- c(
+    "Received recommended IV antibiotics with recommended dosage",
+    "Received at least one recommended IV antibiotic with only one has recommended dosage",
+    "Received at least one recommended IV antibiotic with none have recommended dosage"
+  )
+
+  # Get all unique departments and result categories
+  dept_list <- unique(final_summary2$`Department name`)
+  category_list <- all_categories2
+
+  # Complete grid with zero-filled missing combos
+  complete_summary <- expand_grid(
+    `Department name` = dept_list,
+    Dose_Result = category_list
+  ) %>%
+    left_join(final_summary2, by = c("Department name", "Dose_Result")) %>%
+    filter(Dose_Result %in% all_categories2) %>%
+    mutate(
+      Patients = replace_na(Patients, 0),
+      Total = ave(Patients, `Department name`, FUN = sum),
+      Proportion = ifelse(Total == 0, 0, round(100 * Patients / Total, 1))
+    )
+
+  # Icon function
+  get_icon <- function(label) {
+    label_lower <- tolower(trimws(label))
+    if (label_lower == "received recommended iv antibiotics with recommended dosage") {
+      return("<span style='color:#28a745;'>✅</span>")
+    } else if (label_lower == "received at least one recommended iv antibiotic with only one has recommended dosage") {
+      return("<span style='color:#e6b800;'>⚠️</span>")
+    } else if (label_lower == "received at least one recommended iv antibiotic with none have recommended dosage") {
+      return("<span style='color:#d00;'>❌</span>")
+    } else {
+      return("🛈")
+    }
+  }
+
+  # Description function
+  get_description <- function(label) {
+    label_lower <- tolower(label)
+    if (label_lower == "received recommended iv antibiotics with recommended dosage") {
+      return("Received recommended IV antibiotics with recommended dosage")
+    } else if (label_lower == "received at least one recommended iv antibiotic with only one has recommended dosage") {
+      return("Received at least one recommended IV antibiotic with only one has recommended dosage")
+    } else if (label_lower == "received at least one recommended iv antibiotic with none have recommended dosage") {
+      return("Received at least one recommended IV antibiotic with none have recommended dosage")
+    } else {
+      return(paste("Received:", label))
+    }
+  }
+
+  # Generate HTML summary blocks
+  formatted_blocks2 <- complete_summary %>%
+    group_by(`Department name`) %>%
+    summarise(
+      block = {
+        dept <- first(`Department name`)
+        color <- if (dept == "Hospital-Wide") "#0072B2" else "#6c757d"
+        bg <- if (dept == "Hospital-Wide") "#f0f0f0" else "#ffffff"
+        total_patients <- max(Total, na.rm = TRUE)
+
+        list_items <- purrr::map_chr(all_categories2, function(label) {
+          row_data <- complete_summary %>%
+            filter(`Department name` == dept, Dose_Result == label)
+          count <- row_data$Patients
+          prop <- row_data$Proportion
+          icon <- get_icon(label)
+          description <- get_description(label)
+
+          glue::glue(
+            "<li>{icon} <strong>{description}</strong> (as per WHO AWaRe Book): 
+            <strong>{scales::percent(prop / 100, accuracy = 0.1)}</strong> 
+            ({count} out of {total_patients})</li>"
+          )
+        })
+
+        glue::glue(
+          "<div style='background-color: {bg}; border-left: 5px solid {color}; padding: 14px; margin-bottom: 20px;'>
+          <strong>🏥 {dept}</strong> <span style='color: #888;'>(n = {total_patients} patients)</span><br><br>
+          <ul style='margin-left: 1.2em; line-height: 1.7; padding-left: 0; list-style-type: none;'>
+          {paste(list_items, collapse = '')}
+          </ul>
+          </div>"
+        )
+      },
+      .groups = "drop"
+    ) %>%
+    mutate(order = ifelse(`Department name` == "Hospital-Wide", 0, 1)) %>%
+    arrange(order, `Department name`) %>%
+    select(-order)
+
+  # Render full HTML output
+  final_summary_html2 <- HTML(paste0(intro_text2, paste(formatted_blocks2$block, collapse = "\n")))
+  htmltools::browsable(final_summary_html2)
+}
+
+
+```
+
+***
+
+

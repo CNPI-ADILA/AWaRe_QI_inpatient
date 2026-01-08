@@ -1,0 +1,1783 @@
+---
+title: "[7] Bone & Joint Infection (BJI): WHO AWaRe QIs analysis against gPPS data"
+author: "CNPI AMR"
+date: "Last compiled on `r format(Sys.time(), '%A %d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+    theme: flatly
+    df_print: paged
+    highlight: tango
+    fig_width: 10
+    fig_height: 6
+    fig_caption: true
+    code_folding: hide
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+  📊 Report Overview
+</h1>
+<p style="font-size: 1.15em; color: #444; margin-top: -0.4em; margin-bottom: 1em;">
+This report presents a summary of the AWaRe-based quality indicator analysis based on gPPS inpatient data for Bone & Joint Infections (BJIs).
+
+</p>
+
+
+This analytical script implements **WHO AWaRe (Access, Watch, Reserve)** antibiotic use **quality indicators (QIs)** for treating **BJI** in adult inpatients with **community-acquired infections (CAIs)**. It utilises standardised data from the Global PPS (gPPS), specifically extracted from Excel-based outputs received by participating hospitals.
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+<strong>Bone & Joint Infections</strong> (Based on WHO AWaRe book)<br>
+▸ <strong>gPPS diagnostic code:</strong> <code>BJ</code><br>
+▸ <strong>gPPS definition:</strong> Includes Septic arthritis (including prosthetic joint), osteomyelitis
+</div>
+
+The aim is to assess the appropriateness of **empirical antibiotic prescribing** for BJIs, benchmarked against WHO AWaRe Book, and to provide structured feedback at both the hospital and ward levels. These insights support **antimicrobial stewardship efforts** by highlighting patterns of suboptimal prescribing and identifying opportunities for targeted quality improvement.
+
+---
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+🎯 WHO AWaRe QIs for BJIs
+</h2>
+
+
+Within the scope of the gPPS data structure, **three** QIs have been identified as compatible for evaluating BJIs-related empirical antibiotic prescriptions in adults with CAIs:
+
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+1. <strong>H_OAI_ACCESS_ABX</strong>: Proportion of patients presenting with BJIs (e.g. Acute Bacterial Osteomyelitis or Septic Arthritis) given IV AWaRe Book Access antibiotics.<br><br>
+2. <strong>H_OAI_WATCH_ABX</strong>: Proportion of patients presenting with BJIs (e.g. Acute Bacterial Osteomyelitis or Septic Arthritis) given IV AWaRe Book Watch antibiotics.<br><br>
+3. <strong>H_OAI_APPROP_DOSAGE</strong>: Proportion of patients presenting with BJIs (e.g. Acute Bacterial Osteomyelitis or Septic Arthritis) prescribed the recommended total daily dose of IV antibiotics according to the WHO AWaRe Book.
+
+</div>
+
+
+---
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+💬 General Notes:
+</h2>
+
+- Analysis includes only **adult patients (≥18 years)** with **CAIs** on **empirical** treatment.
+
+- **Intravenous (IV) administration** was inferred using the gPPS `"Route"` code `"P"` (Parenteral), recognizing that it may include other parenteral routes but predominantly indicates IV use in empirical clinical practice.
+
+- It was assumed that **WHO recommendations for BJIs** align with the gPPS diagnostic code **`BJ`**; therefore, these cases were assessed using the WHO AWaRe classification.
+
+- **Quality Indicators (QIs)** were mapped and interpreted based on clinical assumptions aligning WHO Book with the available **gPPS diagnostic codes**.
+
+---
+
+
+<div style="background-color: #fff4e5; border-left: 6px solid #ffc107; padding: 12px; margin-top: 10px;"> 💡 <strong>Reminder:</strong> Caution is advised when interpreting results from small sample sizes (<10 patients) </div> 
+
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+🔍 Initial Data Check
+</h1>
+
+This section assesses whether there are enough eligible cases to support meaningful analysis.
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+rm(list = ls()) #clear global environment
+
+# Define required packages
+packages <- c(
+  "dplyr", 
+  "tidyverse", 
+  "readxl", 
+  "glue",
+  "purrr",
+  "tidyr",
+  "scales",
+  "htmltools", 
+  "ggtext", 
+  "forcats",
+  "kableExtra"
+)
+
+# Install missing packages
+new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
+if (length(new_packages)) install.packages(new_packages)
+
+# Load all packages
+invisible(lapply(packages, library, character.only = TRUE))
+
+# Read the sheets (Patient & Department forms)
+data_info <- read_excel(
+  "HA-Global-PPS_example_dummy data.xlsx",
+  sheet = "Survey",
+  col_types = c("guess", "date", "guess", "date")  # to read dates 
+)
+data_deps <- read_excel("HA-Global-PPS_example_dummy data.xlsx", sheet = "Department forms")
+data_patients_all <- read_excel("HA-Global-PPS_example_dummy data.xlsx", sheet = "Patient forms")
+data_lookup <- read_excel("QIs-Lookup.xlsx")
+
+
+# Select the needed data and merge the sheets to create a simpler version.
+data_patients <- data_patients_all %>%
+  select("Survey Number", "Department name", "Age years", "Weight", "ATC5", "Single Unit Dose", "Unit", "N Doses/day", "Route", "AWaRe", "Diagnosis code", "Indication", "Treatment")
+
+data_patients[data_patients==""]<-NA     # makes all empty spaces to N/A
+
+data_patients <- data_patients %>%
+  mutate(
+    AWaRe = ifelse(
+      toupper(AWaRe) == "NOT_RECOMMENDED",
+      "NOT RECOMMENDED",
+      AWaRe
+    )
+  )
+
+
+AWaRe_abx <- c("ACCESS", "WATCH", "RESERVE", "NOT RECOMMENDED", "UNCLASSIFIED")
+
+
+#  Check if sufficient eligible Bone & Joint Infection cases are available 
+
+
+# Flag eligible patients for Community-Acquired Bone & Joint Infection in Adults on Empirical Treatment
+data_BJ <- data_patients %>%
+  filter(`Diagnosis code` == "BJ") %>%
+  mutate(
+    Route = toupper(Route),
+    AWaRe_compatible = ifelse(
+      `Age years` >= 18 & Indication == "CAI" & Treatment == "EMPIRICAL" & AWaRe %in% AWaRe_abx,
+      TRUE, FALSE
+    )
+  )
+
+# Count eligible unique patients
+eligible_BJ_n <- data_BJ %>%
+  filter(AWaRe_compatible) %>%
+  distinct(`Survey Number`) %>%
+  nrow()
+
+# Format survey dates (assuming they are in data_info)
+survey_start <- format(data_info[[2]][3], "%d %b %Y")
+survey_end <- format(data_info[[4]][3], "%d %b %Y")
+
+# HTML feedback summary for BJI
+html_feedback <- HTML(glue(
+"<div style='background-color: #f0f8ff; border: 1px solid #add8e6; padding: 15px; border-radius: 5px; font-family: sans-serif;'>
+
+  <p style='margin-bottom: 10px;'>
+    <strong>📅 Survey period:</strong> {survey_start} to {survey_end}
+  </p>
+
+  <p>
+    This script applies <strong>WHO AWaRe Quality Indicators</strong> to adult inpatients who received empirical antibiotics for community-acquired bone and joint infections (BJIs).
+  </p>
+
+  <ul>
+    <li><strong>Diagnostic code:</strong> BJ</li>
+    <li><strong>Total eligible cases:</strong> {eligible_BJ_n}</li>
+  </ul>
+
+  {if(eligible_BJ_n == 0){
+    '<div style=\"background-color:#fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 3px; margin-top: 10px;\">
+      <strong>🚫 No eligible cases found:</strong> There were no eligible cases for evaluation during this survey period. Please verify data availability.
+    </div>'
+  } else if(eligible_BJ_n < 10){
+    '<div style=\"background-color:#ffe0e0; border: 1px solid #ffb3b3; padding: 10px; border-radius: 3px; margin-top: 10px;\">
+      <strong>⚠️ Caution:</strong> Few eligible cases detected. Interpret results with caution.
+    </div>'
+  } else {
+    '<div style=\"background-color:#e0ffe0; border: 1px solid #b3ffb3; padding: 10px; border-radius: 3px; margin-top: 10px;\">
+      <strong>✅ Good to go!</strong> Sufficient eligible cases available to proceed with full evaluation.
+    </div>'
+  }}
+
+</div>"
+))
+
+# Render feedback
+htmltools::browsable(html_feedback)
+
+
+```
+
+***
+
+<hr style="border-top: 3px dashed #28a745; margin-top: 25px; margin-bottom: 15px;">
+
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+🧾 Summary of BJI Eligible Patients for QI Assessment
+</h1>
+
+Eligible patients for **WHO AWaRe QI** assessment are defined as **adult inpatients (≥18 years)** who received **empirical antibiotics** for **CA-BJI**.
+
+This section presents both **prescription-level** and **patient-level** summaries to establish how much of the dataset is relevant for QI evaluation. It helps frame the proportion of all prescriptions that are relevant to CA-BJI.
+
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+👥 Patient-Level Summary
+</h2>
+
+This table reports on unique patients in each eligibility group. It reflects the clinical burden of BJI and the proportion of patients suitable for QI evaluation.
+
+<div style="background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 12px; margin-top: 10px;">
+
+<strong>📊 Summary:</strong><br>
+Total number of patients on antibiotics: <strong>`r data_patients %>% filter(AWaRe %in% AWaRe_abx) %>% distinct(.data[["Survey Number"]]) %>% nrow()`</strong><br>
+Total number of eligible patients on antibiotics: <strong>`r data_patients %>% filter(.data[["Age years"]] >= 18, Indication == "CAI", AWaRe %in% AWaRe_abx, Treatment == "EMPIRICAL", .data[["Diagnosis code"]] == "BJ") %>% distinct(.data[["Survey Number"]]) %>% nrow()`</strong>
+
+</div>
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Total unique patients on antibiotics
+total_patients <- data_patients %>%
+  filter(AWaRe %in% AWaRe_abx) %>%
+  distinct(`Survey Number`) %>%
+  nrow()
+
+# Patient-level summary
+patient_summary <- data.frame(
+  Category = c(
+    "Number of adult patients (≥18 years) who received empirical antibiotic treatment for CAI",
+    "Number of all patients with a diagnosis of BJI on any antibiotics",
+    "**Number of eligible patients:** Adult patients (≥18 years) with a diagnosis of CA-BJI who were treated empirically with antibiotics"
+  ),
+  Count = c(
+    data_patients %>%
+      filter(`Age years` >= 18, Indication == "CAI", Treatment == "EMPIRICAL", AWaRe %in% AWaRe_abx) %>%
+      distinct(`Survey Number`) %>%
+      nrow(),
+    data_patients %>%
+      filter(`Diagnosis code` == "BJ", AWaRe %in% AWaRe_abx) %>%
+      distinct(`Survey Number`) %>%
+      nrow(),
+    data_patients %>%
+      filter(`Age years` >= 18, Indication == "CAI", Treatment == "EMPIRICAL", `Diagnosis code` == "BJ", AWaRe %in% AWaRe_abx) %>%
+      distinct(`Survey Number`) %>%
+      nrow()
+  )
+) %>%
+  mutate(
+    Percent = sprintf("%.1f%%", 100 * Count / total_patients)
+  )
+
+# Show table
+knitr::kable(
+  patient_summary,
+  col.names = c("Patient Category", "Number of Patients", "Proportion of All Patients"),
+  format = "html",
+  align = "lcr"  # Left-align category, center number, right-align proportion
+) %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed"),
+    font_size = 13
+  ) %>%
+  kableExtra::column_spec(2:3, width = "8em")  
+
+```
+
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📑 Prescription-Level Summary
+</h2>
+
+<div style="background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 12px; margin-top: 10px;">
+
+<strong>📊 Summary:</strong><br>
+Total number of antibiotic prescriptions: <strong>`r data_patients %>% filter(AWaRe %in% AWaRe_abx) %>% nrow()`</strong><br>
+Total number of eligible antibiotic prescriptions: <strong>`r data_patients %>% filter(.data[["Age years"]] >= 18, Indication == "CAI", AWaRe %in% AWaRe_abx, Treatment == "EMPIRICAL", .data[["Diagnosis code"]] == "BJ") %>% nrow()`</strong>
+
+</div>
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Total prescriptions
+total_prescriptions <- data_patients %>%
+  filter(AWaRe %in% AWaRe_abx) %>%
+  nrow()
+
+# Prescription summary table
+prescription_summary <- data.frame(
+  Category = c(
+    "Number of empirical antibiotic prescriptions administered to adult patients (≥18 years) for CAI",
+    "Number of all antibiotic prescriptions for patients diagnosed with BJI",
+    "**Number of eligible antibiotic prescriptions:** antibiotics empirically prescribed for adult patients (≥18 years) with CA-BJI"
+  ),
+  Count = c(
+    data_patients %>% filter(`Age years` >= 18, Indication == "CAI", Treatment == "EMPIRICAL", AWaRe %in% AWaRe_abx) %>% nrow(),
+    data_patients %>% filter(`Diagnosis code` == "BJ", AWaRe %in% AWaRe_abx) %>% nrow(),
+    data_patients %>% filter(`Age years` >= 18, Indication == "CAI", Treatment == "EMPIRICAL", `Diagnosis code` == "BJ", AWaRe %in% AWaRe_abx) %>% nrow()
+  )
+) %>%
+  mutate(
+    Percent = sprintf("%.1f%%", 100 * Count / total_prescriptions)
+  )
+
+# Display table
+knitr::kable(
+  prescription_summary,
+  col.names = c("Prescription Category", "Number of Prescriptions", "Proportion of All Prescriptions"),
+  format = "html",
+  align = "lcr"  # Left-align category, center number, right-align proportion
+) %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed"),
+    font_size = 13
+  ) %>%
+  kableExtra::column_spec(2:3, width = "8em") 
+
+```
+
+***
+
+<hr style="border-top: 3px dashed #28a745; margin-top: 25px; margin-bottom: 15px;">
+
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📘 WHO AWaRe-QIs Overview
+</h1>
+
+This script evaluates **THREE** WHO AWaRe indicators:
+
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+1. <strong>H_OAI_ACCESS_ABX</strong>: Proportion of patients presenting with BJIs (e.g. Acute Bacterial Osteomyelitis or Septic Arthritis) given IV AWaRe Book Access antibiotics.<br><br>
+2. <strong>H_OAI_WATCH_ABX</strong>: Proportion of patients presenting with BJIs (e.g. Acute Bacterial Osteomyelitis or Septic Arthritis) given IV AWaRe Book Watch antibiotics.<br><br>
+3. <strong>H_OAI_APPROP_DOSAGE</strong>: Proportion of patients presenting with BJIs (e.g. Acute Bacterial Osteomyelitis or Septic Arthritis) prescribed the recommended total daily dose of IV antibiotics according to the WHO AWaRe Book.
+
+</div>
+
+<div style="background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 12px; margin-top: 10px; margin-bottom: 10px;">
+<strong>🔍 WHO AWaRe Book Recommendation:</strong><br><br>
+
+<ul style="list-style-type: none; padding-left: 0; line-height: 1.8;">
+  <li><strong>Option 1:</strong> Cloxacillin (2 g q6h IV)</li>
+  <li><strong>Option 2:</strong> Amoxicillin + clavulanic acid (1 g + 200 mg q8h IV)</li>
+  <li><strong>Option 3:</strong> Cefazolin (2 g q8h IV)</li>
+  <li><strong>Option 4:</strong> Cefotaxime (2 g q8h IV)</li>
+  <li><strong>Option 5:</strong> Ceftriaxone (2 g q24h IV)</li>
+  <li><strong>Option 6:</strong> Clindamycin (600 mg q8h IV/ORAL)</li>
+</ul>
+</div>
+
+
+<div style="background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 12px; margin-top: 10px; margin-bottom: 18px;">
+<strong>🩺 WHO AWaRe Notes:</strong>
+<ul>
+  <li>The intravenous route is preferred at least in the first week of treatment</li>
+  <li>Step down to oral treatment is based on improvement</li>
+  <li>If cloxacillin is unavailable, any other IV antistaphylococcal penicillin could be used. </li>
+  <li>A higher dose (e.g. 12 g/day) could be considered given the concerns with bone penetration.</li>
+  <li>Ceftriaxone or cefotaxime are the preferred options if invasive non-typhoidal Salmonella or Enterobacterales infection is suspected</li>
+    <li>Acceptable option for community-acquired-MRSA if MRSA is susceptible or in settings where MRSA maintains high levels of susceptibility to clindamycin, otherwise consider vancomycin</li>
+</ul>
+</div>
+
+<hr style="border-top: 3px dashed #28a745; margin-top: 25px; margin-bottom: 15px;">
+
+***
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📌 Indicator 1 & 2 - IV Access & Watch Antibiotic Use
+</h1>
+
+This section evaluates two WHO AWaRe indicators:
+
+> **H_OAI_ACCESS_ABX:** Proportion of patients presenting with BJIs (e.g. Acute Bacterial Osteomyelitis or Septic Arthritis) given **IV AWaRe Book Access antibiotics**.
+
+> **H_OAI_WATCH_ABX:** Proportion of patients presenting with BJIs (e.g. Acute Bacterial Osteomyelitis or Septic Arthritis) given **IV AWaRe Book Watch antibiotics**.
+
+***
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📝 Summary of Access/Watch Antibiotic Use
+</h2>
+
+This section summarizes use of IV Access/Watch antibiotics for patients with BJIs across hospital departments
+
+ 
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+# Filter BJ patients & flag eligibility
+data_BJ <- data_patients %>%
+  filter(`Diagnosis code` == "BJ") %>%
+  mutate(
+    Route = toupper(Route),
+    Eligible = ifelse(
+      `Age years` >= 18 & Indication == "CAI" & Treatment == "EMPIRICAL" & AWaRe %in% AWaRe_abx,
+      TRUE, FALSE
+    )
+  )
+
+# Keep eligible patients only
+data_BJ_eligible <- data_BJ %>%
+  filter(Eligible == TRUE)
+
+# Total patient counts
+total_BJ <- data_BJ %>% distinct(`Survey Number`) %>% nrow()
+eligible_BJ <- data_BJ_eligible %>% distinct(`Survey Number`) %>% nrow()
+
+# Handle case of no eligible patients
+if (eligible_BJ == 0 || is.na(eligible_BJ)) {
+  final_summary_html <- HTML(
+    "<div style='background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 14px; margin-top: 10px;'>
+    ⚠️ <strong>No summary available</strong> — there are currently no eligible patients with antibiotic data for assessment.<br><br>
+    <em>This may indicate that no patients received antibiotics, or none met inclusion criteria.</em>
+    </div>"
+  )
+  htmltools::browsable(final_summary_html)
+
+} else {
+
+  # Summarise whether patient received each IV type
+  summary_iv_aware <- data_BJ_eligible %>%
+    group_by(`Survey Number`, `Department name`) %>%
+    summarise(
+      IV_ACCESS = any(Route == "P" & AWaRe == "ACCESS"),
+      IV_WATCH  = any(Route == "P" & AWaRe == "WATCH"),
+      IV_OTHER  = any(Route == "P" & !(AWaRe %in% c("ACCESS", "WATCH"))),
+      ANY_IV    = any(Route == "P"),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      Not_IV = !ANY_IV
+    )
+
+  # Department-level summary
+  summary_iv_dept <- summary_iv_aware %>%
+    group_by(`Department name`) %>%
+    summarise(
+      Eligible     = n(),
+      N_IV_ACCESS  = sum(IV_ACCESS),
+      N_IV_WATCH   = sum(IV_WATCH),
+      N_IV_OTHER   = sum(IV_OTHER),
+      N_Not_IV     = sum(Not_IV),
+      Prop_ACCESS  = round(100 * N_IV_ACCESS / Eligible, 1),
+      Prop_WATCH   = round(100 * N_IV_WATCH / Eligible, 1),
+      Prop_OTHER   = round(100 * N_IV_OTHER / Eligible, 1),
+      Prop_Not_IV  = round(100 * N_Not_IV / Eligible, 1),
+      .groups = "drop"
+    )
+
+  # Hospital-level summary
+  summary_iv_total <- summary_iv_aware %>%
+    summarise(
+      `Department name` = "Hospital-Wide",
+      Eligible     = n(),
+      N_IV_ACCESS  = sum(IV_ACCESS),
+      N_IV_WATCH   = sum(IV_WATCH),
+      N_IV_OTHER   = sum(IV_OTHER),
+      N_Not_IV     = sum(Not_IV),
+      Prop_ACCESS  = round(100 * N_IV_ACCESS / Eligible, 1),
+      Prop_WATCH   = round(100 * N_IV_WATCH / Eligible, 1),
+      Prop_OTHER   = round(100 * N_IV_OTHER / Eligible, 1),
+      Prop_Not_IV  = round(100 * N_Not_IV / Eligible, 1)
+    )
+
+  # Combine summaries
+  summary_iv_final <- bind_rows(summary_iv_total, summary_iv_dept)
+
+  # Intro block
+  intro_text <- glue::glue(
+    "<div style='background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 14px; margin-top: 10px; margin-bottom: 10px;'>
+    💊 <strong>Denominator:</strong> Number of eligible patients with any BJI (<strong>{eligible_BJ}</strong> out of {total_BJ})
+    </div><br><br>
+    <strong>Summary:</strong><br><br>"
+  )
+
+  # Build formatted summary blocks
+  formatted_blocks <- summary_iv_final %>%
+    mutate(block = pmap_chr(
+      list(
+        `Department name`,
+        Prop_ACCESS, N_IV_ACCESS,
+        Prop_WATCH, N_IV_WATCH,
+        Prop_OTHER, N_IV_OTHER,
+        Prop_Not_IV, N_Not_IV,
+        Eligible
+      ),
+      function(dept, access_p, access_n, watch_p, watch_n, other_p, other_n, notiv_p, notiv_n, total_n) {
+        color <- if (dept == "Hospital-Wide") "#0072B2" else "#6c757d"
+        bg <- if (dept == "Hospital-Wide") "#f0f0f0" else "#ffffff"
+
+        glue::glue(
+          "<div style='background-color: {bg}; border-left: 5px solid {color}; padding: 14px; margin-bottom: 20px;'>
+
+          <strong>🏥 {dept}</strong> <span style='color: #888;'>(n = {total_n} patients)</span><br><br>
+
+          <ul style='margin-left: 1.2em; line-height: 1.8; padding-left: 0; list-style-type: none;'>
+            <li>
+              <span style='display: inline-block; background-color: #1b9e77; color: white; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; margin-right: 8px;'>1</span>
+              <strong>Received IV ACCESS antibiotic</strong>: <strong>{scales::percent(access_p / 100, accuracy = 0.1)}</strong> ({access_n} out of {total_n})
+            </li>
+            <li>
+              <span style='display: inline-block; background-color: #ff7f00; color: white; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; margin-right: 8px;'>2</span>
+              <strong>Received IV WATCH antibiotic</strong>: <strong>{scales::percent(watch_p / 100, accuracy = 0.1)}</strong> ({watch_n} out of {total_n})
+            </li>
+            <li>
+              <span style='display: inline-block; background-color: #e41a1c; color: white; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; margin-right: 8px;'>3</span>
+              <strong>Received IV OTHER AWaRe antibiotic</strong>: <strong>{scales::percent(other_p / 100, accuracy = 0.1)}</strong> ({other_n} out of {total_n})
+            </li>
+            <li>
+              <span style='display: inline-block; background-color: #6c757d; color: white; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; margin-right: 8px;'>4</span>
+              <strong>Did NOT receive any IV antibiotic</strong>: <strong>{scales::percent(notiv_p / 100, accuracy = 0.1)}</strong> ({notiv_n} out of {total_n})
+            </li>
+          </ul>
+
+          </div>"
+        )
+      }
+    ))
+
+  # Reorder Hospital-Wide first
+  formatted_blocks <- formatted_blocks %>%
+    mutate(order = ifelse(`Department name` == "Hospital-Wide", 0, 1)) %>%
+    arrange(order, `Department name`) %>%
+    select(-order)
+
+  # Final output
+  final_summary_html <- HTML(paste0(intro_text, paste(formatted_blocks$block, collapse = "\n")))
+  htmltools::browsable(final_summary_html)
+}
+
+
+
+```
+
+***
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈 Antibiotic Prescription by AWaRe Classification
+</h2>
+
+This visual summarises the proportion of antibiotic prescription for BJIs across hospital departments by WHO AWaRe Classification (Access, Watch, Reserve)
+
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+#  Always define route_levels 
+route_levels <- c("IV ACCESS", "IV WATCH", "IV OTHER", "No IV")
+
+#  Ensure summary_iv_final exists even if no eligible patients 
+if (eligible_BJ == 0) {
+
+  dept_list <- sort(unique(data_BJ$`Department name`))
+
+  summary_iv_final <- expand_grid(
+    `Department name` = dept_list
+  ) %>%
+    mutate(
+      Eligible = 0,
+      N_IV_ACCESS = 0,
+      N_IV_WATCH = 0,
+      N_IV_OTHER = 0,
+      N_Not_IV = 0
+    )
+}
+
+
+#  Plot construction (always runs) 
+all_combos <- expand_grid(
+  `Department name` = sort(unique(summary_iv_final$`Department name`)),
+  Route = route_levels
+)
+
+plot_data <- summary_iv_final %>%
+  select(`Department name`, Eligible,
+         `IV ACCESS` = N_IV_ACCESS,
+         `IV WATCH`  = N_IV_WATCH,
+         `IV OTHER`  = N_IV_OTHER,
+         `No IV`     = N_Not_IV) %>%
+  pivot_longer(
+    cols = c(`IV ACCESS`, `IV WATCH`, `IV OTHER`, `No IV`),
+    names_to = "Route",
+    values_to = "Count"
+  ) %>%
+  right_join(all_combos, by = c("Department name", "Route")) %>%
+  mutate(
+    Count = replace_na(Count, 0)
+  ) %>%
+  group_by(`Department name`) %>%
+  mutate(
+    Total = sum(Count),
+    Proportion = ifelse(Total > 0, Count / Total, 0),
+    Label = ifelse(Proportion > 0.05, paste0(round(Proportion * 100), "%\n(n=", Count, ")"), "")
+  ) %>%
+  ungroup() %>%
+  mutate(
+    PlotLabel = ifelse(
+      `Department name` == "Hospital-Wide",
+      "<b style='color:#0072B2;'>Hospital-Wide</b>",
+      `Department name`
+    ),
+    PlotLabel = factor(
+      PlotLabel,
+      levels = c(
+        "<b style='color:#0072B2;'>Hospital-Wide</b>",
+        sort(setdiff(unique(`Department name`), "Hospital-Wide"))
+      )
+    ),
+    Route = factor(Route, levels = route_levels)
+  )
+
+#  Draw the plot 
+ggplot(plot_data, aes(x = 2, y = Proportion, fill = Route)) +
+  geom_bar(stat = "identity", width = 0.1) +
+  coord_polar(theta = "y") +
+  facet_wrap(~ PlotLabel, nrow = 2, strip.position = "bottom", drop = FALSE) +
+  geom_text(aes(label = Label), position = position_stack(vjust = 0.5), size = 3, color = "white") +
+  scale_fill_manual(
+    breaks = route_levels,
+    values = c(
+      "IV ACCESS" = "#1B9E77",
+      "IV WATCH"  = "#ff7f00",
+      "IV OTHER"  = "#E41A1C",
+      "No IV"     = "#999999"
+    ),
+    drop = FALSE
+  ) +
+  theme_void(base_size = 10) +
+  theme(
+    strip.text = ggtext::element_markdown(face = "bold", size = 9),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold"),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+    panel.spacing = unit(1, "lines")
+  ) +
+  labs(
+    title = "IV Antibiotic Use by AWaRe Category (BJIs)",
+    fill = "Group"
+  )
+
+
+```
+
+
+<div style='background-color: #f8f9fa; padding: 10px; border-left: 5px solid #17a2b8;'>
+  <strong>💡 Note:</strong> The AWaRe classification divides antibiotics into three categories: Access, Watch, and Reserve. Access antibiotics are first-line treatments with a low risk of resistance, typically recommended for common infections. Watch antibiotics are associated with a higher risk of resistance and require careful monitoring. Reserve antibiotics are reserved for critical cases involving resistant infections, typically used only when other options are ineffective </strong>.
+  <br>
+</div>
+***
+
+<hr style="border-top: 3px dashed #28a745; margin-top: 25px; margin-bottom: 15px;">
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📌 Indicator 3 – IV Antibiotic Appropriateness 
+</h1>
+
+> **H_OAI_APPROP_DOSAGE:** Proportion of patients presenting with BJIs (e.g. Acute Bacterial Osteomyelitis or Septic Arthritis) prescribed the recommended total daily dose of IV antibiotics according to the WHO AWaRe Book.
+
+
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+
+#  Data preparation: antibiotic choice appropriateness
+
+#  Prepare the data (Select BJ data only)
+data_BJ_choice <- data_patients %>%
+  filter(`Diagnosis code` == "BJ") %>%
+  mutate(
+    Route = toupper(Route),
+    AWaRe_compatible = ifelse(
+      `Age years` >= 18 & Indication == "CAI" & Treatment == "EMPIRICAL" & AWaRe %in% AWaRe_abx,
+      TRUE, FALSE
+    )
+  )
+
+#  Lookup ABX names for QI
+lookup_names <- data_lookup %>%
+  filter(Code == "H_OAI_APPROP_DOSAGE") %>%
+  select(starts_with("ABX-ATC")) %>%
+  unlist(use.names = FALSE)
+
+#  Flag matched prescriptions
+data_BJ_choice <- data_BJ_choice %>%
+  mutate(
+    Drug_Match = ATC5 %in% lookup_names
+  )
+
+#  Extract lookup info 
+lookup_BJ_choice <- data_lookup %>%
+  filter(Code == "H_OAI_APPROP_DOSAGE")
+
+# Create long format from lookup
+lookup_long <- tibble(
+  Drug = unlist(lookup_BJ_choice %>% select(starts_with("ABX-ATC")), use.names = FALSE),
+  Choice = unlist(lookup_BJ_choice %>% select(starts_with("ABX-CHOICE")), use.names = FALSE)
+) %>%
+  filter(!is.na(Drug))  # Remove empty rows
+
+# Merge choice info with patient-level data
+data_BJ_choice <- data_BJ_choice %>%
+  left_join(lookup_long, by = c("ATC5" = "Drug"))
+
+# Add Department info to patient summary
+patient_summary_BJ <- data_BJ_choice %>%
+  filter(AWaRe_compatible) %>%
+  group_by(`Survey Number`, `Department name`) %>% 
+  summarise(
+    
+    All_ABX = list(unique(ATC5)),
+
+    # Match flags
+    Match_1 = any(ATC5 == lookup_names[1]),
+    Match_2 = any(ATC5 == lookup_names[2]),
+    Match_3 = any(ATC5 == lookup_names[3]),
+    Match_4 = any(ATC5 == lookup_names[4]),
+    Match_5 = any(ATC5 == lookup_names[5]),
+    Match_6 = any(ATC5 == lookup_names[6]),
+    
+    # Route-specific match flags
+    Match_1_P = any(ATC5 == lookup_names[1] & Route == "P"),
+    Match_2_P = any(ATC5 == lookup_names[2] & Route == "P"),
+    Match_3_P = any(ATC5 == lookup_names[3] & Route == "P"),
+    Match_4_P = any(ATC5 == lookup_names[4] & Route == "P"),
+    Match_5_P = any(ATC5 == lookup_names[5] & Route == "P"),
+    Match_6_P = any(ATC5 == lookup_names[6] & Route == "P"),
+    
+    N_ABX = n_distinct(ATC5),
+    Any_IV = any(Route == "P"),
+    Any_Oral = any(Route == "O"),
+    .groups = "drop"
+  ) %>%
+  rowwise() %>%
+  mutate(
+    Num_Recommended_P = sum(c_across(Match_1_P:Match_6_P)),
+
+    # Fully appropriate: only one antibiotic, and it's recommended
+    Appropriate = Num_Recommended_P == 1 & N_ABX == 1,
+
+    # Partial appropriate: ≥1 recommended drug, but given with others
+    Partial_Appropriate = Num_Recommended_P >= 1 & N_ABX > 1,
+
+    # Inappropriate IV use (no recommended drugs via IV)
+    No_Appropriate = Any_IV & !Appropriate & !Partial_Appropriate,
+    
+    # Oral antibiotics use
+    Oral_antibiotics = Any_Oral & !Appropriate & !Partial_Appropriate & !No_Appropriate,
+    
+    # All other inappropriate cases
+    No_Appropriate_others = !Appropriate & !Partial_Appropriate & !No_Appropriate & !Oral_antibiotics
+  ) %>%
+  ungroup()
+
+# Get not eligible patients
+not_eligible_patients_BJ <- data_BJ_choice %>%
+  group_by(`Survey Number`, `Department name`) %>%
+  summarise(Ineligible = all(AWaRe_compatible == FALSE), .groups = "drop") %>%
+  filter(Ineligible)
+
+# Reshape eligible indicators to long format
+eligible_long_BJ <- patient_summary_BJ %>%
+  select(`Survey Number`, `Department name`, Appropriate, Partial_Appropriate, No_Appropriate, Oral_antibiotics, No_Appropriate_others) %>%
+  pivot_longer(
+    cols = -c(`Survey Number`, `Department name`),
+    names_to = "Indicator",
+    values_to = "Value"
+  ) %>%
+  filter(Value) %>%
+  group_by(`Department name`, Indicator) %>%
+  summarise(Patients = n(), .groups = "drop")
+
+# Create "Not Eligible" summary
+ineligible_summary_BJ <- not_eligible_patients_BJ %>%
+  count(`Department name`) %>%
+  mutate(Indicator = "Not_Eligible") %>%
+  rename(Patients = n)
+
+# Combine all indicator data
+combined_BJ <- bind_rows(eligible_long_BJ, ineligible_summary_BJ)
+
+# Expand all department-indicator combinations
+all_combos_BJ <- expand_grid(
+  `Department name` = unique(combined_BJ$`Department name`),
+  Indicator = c("Appropriate", "Partial_Appropriate", "No_Appropriate", "Oral_antibiotics", "No_Appropriate_others", "Not_Eligible")
+)
+
+# Ensure all categories appear with 0 if missing
+qi_long_BJ <- all_combos_BJ %>%
+  left_join(combined_BJ, by = c("Department name", "Indicator")) %>%
+  mutate(Patients = replace_na(Patients, 0))
+
+# Department totals
+dept_totals_BJ <- qi_long_BJ %>%
+  group_by(`Department name`) %>%
+  summarise(Total = sum(Patients), .groups = "drop")
+
+# Calculate proportions and clean labels
+qi_summary_BJ <- qi_long_BJ %>%
+  left_join(dept_totals_BJ, by = "Department name") %>%
+  mutate(
+    Indicator = case_when(
+      Indicator == "Appropriate" ~ "Received recommended IV antibiotics",
+      Indicator == "Partial_Appropriate" ~ "Partially received recommended IV antibiotics",
+      Indicator == "No_Appropriate" ~ "Received IV antibiotics not among recommended options",
+      Indicator == "Oral_antibiotics" ~ "Received oral antibiotics",
+      Indicator == "No_Appropriate_others" ~ "Received other non-IV/oral antibiotics",
+      Indicator == "Not_Eligible" ~ "Not eligible for AWaRe BJI QIs",
+      TRUE ~ Indicator
+    ),
+    Proportion = round(Patients / Total, 4)
+  )
+
+# Add Hospital-Wide totals
+hospital_data_BJ <- qi_summary_BJ %>%
+  group_by(Indicator) %>%
+  summarise(Patients = sum(Patients), .groups = "drop") %>%
+  mutate(`Department name` = "Hospital-Wide")
+
+# Combine with department-level data
+qi_summary_BJ <- bind_rows(qi_summary_BJ, hospital_data_BJ)
+
+# Recalculate total and proportion for Hospital-Wide
+qi_summary_BJ <- qi_summary_BJ %>%
+  group_by(`Department name`) %>%
+  mutate(
+    Total = sum(Patients),
+    Proportion = round(Patients / Total, 4)
+  ) %>%
+  ungroup()
+
+```
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈 Antibiotic Choice Appropriateness for BJIs
+</h2>
+ 
+This visual summarises the proportion of antibiotic appropriateness for BJIs across hospital departments based on WHO AWaRe Book
+
+ 
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+
+# Define label and color lookup
+indicator_labels <- c(
+  "Appropriate"               = "Received recommended IV antibiotics",
+  "Partial_Appropriate"    = "Partially received recommended IV antibiotics",
+  "No_Appropriate"            = "Received IV antibiotics not among recommended options",
+  "Oral_antibiotics"          = "Received oral antibiotics",
+  "No_Appropriate_others"     = "Received other non-IV/oral antibiotics",
+  "Not_Eligible"              = "Not eligible for AWaRe BJI QIs"
+)
+
+drug_choice_colors <- c(
+  "Received recommended IV antibiotics"             = "#1F77B4",
+  "Partially received recommended IV antibiotics"         = "#4FA9DC",
+  "Received IV antibiotics not among recommended options"         = "#EF476F",
+  "Received oral antibiotics"                       = "#F9D99E",
+  "Received other non-IV/oral antibiotics"      = "#D3D3D3",
+  "Not eligible for AWaRe BJI QIs"             = "#A9A9A9"
+)
+
+# Reorder Department + apply markdown formatting for Hospital-Wide
+qi_summary_BJ <- qi_summary_BJ %>%
+  mutate(
+    Indicator = factor(
+      Indicator,
+      levels = c(
+        "Received recommended IV antibiotics",
+        "Partially received recommended IV antibiotics",
+        "Received IV antibiotics not among recommended options",
+        "Received oral antibiotics",
+        "Received other non-IV/oral antibiotics",
+        "Not eligible for AWaRe BJI QIs"
+      )
+    ),
+    PlotLabel = ifelse(
+      `Department name` == "Hospital-Wide",
+      "<b style='color:#0072B2;'>Hospital-Wide</b>",
+      `Department name`
+    ),
+    PlotLabel = factor(
+      PlotLabel,
+      levels = c(
+        "<b style='color:#0072B2;'>Hospital-Wide</b>",
+        sort(setdiff(unique(`Department name`), "Hospital-Wide"))
+      )
+    )
+  )
+
+# Create the plot
+ggplot(qi_summary_BJ, aes(x = PlotLabel, y = Proportion, fill = Indicator)) +
+
+  # Highlight Hospital-Wide bar
+  annotate("rect",
+           xmin = 0.5, xmax = 1.5, ymin = 0, ymax = 1,
+           fill = "gray95", alpha = 0.5) +
+
+  # Stacked proportional bars
+  geom_bar(stat = "identity", position = "fill", width = 0.85) +
+
+  # Patient count labels inside bars
+  geom_text(
+    aes(label = ifelse(Patients > 0, Patients, "")),
+    position = position_fill(vjust = 0.5),
+    size = 3, color = "black"
+  ) +
+
+  # Total n= labels above bars
+  geom_text(
+    data = qi_summary_BJ %>% distinct(PlotLabel, Total),
+    aes(x = PlotLabel, y = 1.05, label = paste0("n=", Total)),
+    inherit.aes = FALSE,
+    size = 3, color = "gray30", hjust = 0.6
+  ) +
+
+  # Manual color scale
+  scale_fill_manual(
+    values = drug_choice_colors,
+    labels = indicator_labels
+  ) +
+
+  # Keep vertical bars
+  scale_y_continuous(limits = c(0, 1.09), expand = c(0, 0)) +
+
+  # Labels
+  labs(
+    title = "Antibiotic Choice Appropriateness Summary for BJIs",
+    subtitle = "Each bar shows distribution of appropriateness against WHO AWaRe guidelines (n = raw patient counts)",
+    x = "Department",
+    y = "Proportional Stacked Bars",
+    fill = "Treatment Appropriateness Category"
+  ) +
+
+  # Aesthetic theme
+  theme_minimal(base_size = 8) +
+  theme(
+    axis.text.x = ggtext::element_markdown(size = 8, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 8),
+    axis.title = element_text(face = "bold", size = 10),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", size = 8),
+    legend.text = element_text(size = 8, margin = margin(b = 4)),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 10),
+    plot.subtitle = element_text(hjust = 0.5, size = 7, color = "gray30"),
+    panel.border = element_rect(color = "gray70", fill = NA, size = 0.8),
+    plot.margin = margin(10, 10, 10, 10)
+  ) +
+
+  # Legend format: 1 category per row
+  guides(
+    fill = guide_legend(nrow = 6, byrow = FALSE, title.position = "top")
+  )
+
+
+```
+
+---
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈 Antibiotic Choice Appropriateness by AWaRe Classification
+</h2>
+
+This visual summarises the proportion of antibiotic appropriateness for BJIs across hospital departments by WHO AWaRe Classification (Access, Watch, Reserve)
+
+ 
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+# Add Department info to patient summary
+patient_summary_AWARE <- data_BJ_choice %>%
+  filter(AWaRe_compatible) %>%
+  group_by(`Survey Number`, `Department name`, AWaRe) %>%  # Add department here
+  summarise(
+    N_total = n(),
+    N_match = sum(Drug_Match),
+    N_p = sum(Route == "P"),
+    N_p_match = sum(Route == "P" & Drug_Match),
+
+    # Match flags
+    Match_1 = any(ATC5 == lookup_names[1]),
+    Match_2 = any(ATC5 == lookup_names[2]),
+    Match_3 = any(ATC5 == lookup_names[3]),
+    Match_4 = any(ATC5 == lookup_names[4]),
+    Match_5 = any(ATC5 == lookup_names[5]),
+    Match_6 = any(ATC5 == lookup_names[6]),
+    
+    # Route-specific match flags
+    Match_1_P = any(ATC5 == lookup_names[1] & Route == "P"),
+    Match_2_P = any(ATC5 == lookup_names[2] & Route == "P"),
+    Match_3_P = any(ATC5 == lookup_names[3] & Route == "P"),
+    Match_4_P = any(ATC5 == lookup_names[4] & Route == "P"),
+    Match_5_P = any(ATC5 == lookup_names[5] & Route == "P"),
+    Match_6_P = any(ATC5 == lookup_names[6] & Route == "P"),
+    
+    .groups = "drop"
+  ) %>%
+  mutate(
+        Appropriate_IV = (
+      (Match_1_P | Match_2_P | Match_3_P | Match_4_P | Match_5_P | Match_6_P) 
+    ))
+
+
+#  Create summary table with Department name
+AWaRe_long <- patient_summary_AWARE %>%
+  select(`Survey Number`, `Department name`, AWaRe, Appropriate_IV) %>%
+  pivot_longer(
+    cols = -c(`Survey Number`, `Department name`, AWaRe),
+    names_to = "Indicator",
+    values_to = "Value"
+  ) %>%
+  filter(Value) %>%
+  group_by(`Department name`, AWaRe, Indicator) %>%
+  summarise(Patients = n(), .groups = "drop")
+
+# Calculate total per department
+AWaRe_dept_totals <- AWaRe_long %>%
+  group_by(`Department name`) %>%
+  summarise(Total = sum(Patients), .groups = "drop")
+
+# Final summary table with proportions
+AWaRe_long <- AWaRe_long %>%
+  left_join(AWaRe_dept_totals, by = "Department name")  %>% 
+  mutate (Proportion = round(100 * Patients / Total, 1))
+
+
+#  Add Hospital Total row 
+AWaRe_hospital_data <- AWaRe_long %>%
+  group_by(AWaRe) %>%
+  summarise(Patients = sum(Patients), .groups = "drop") %>%
+  mutate(`Department name` = "Hospital-Wide") %>%
+  select(`Department name`, AWaRe, Patients)
+
+# Combine with original data
+AWaRe_long <- bind_rows(AWaRe_long, AWaRe_hospital_data)
+
+
+# Recalculate totals and proportions
+AWaRe_long <- AWaRe_long %>%
+  group_by(`Department name`) %>%
+  mutate(
+    Total = sum(Patients),
+    Proportion = Patients / Total
+  ) %>%
+  ungroup()
+
+# Format "Hospital" label to bold
+AWaRe_long <- AWaRe_long %>%
+  mutate(`Department name` = ifelse(`Department name` == "Hospital-Wide", "Hospital-Wide", `Department name`))
+ 
+
+# ------ Ploting------
+
+# Set stacking and legend orders
+aware_levels_stack <- c("WATCH", "ACCESS")
+aware_levels_legend <- c("ACCESS", "WATCH")
+
+# Ensure AWaRe is a factor
+AWaRe_long$AWaRe <- factor(AWaRe_long$AWaRe, levels = aware_levels_stack)
+
+# Create full grid of departments × AWaRe levels
+all_combos <- expand_grid(
+  `Department name` = unique(AWaRe_long$`Department name`),
+  AWaRe = aware_levels_stack
+)
+
+# Left join to fill in missing combinations with zero
+AWaRe_long <- all_combos %>%
+  left_join(AWaRe_long, by = c("Department name", "AWaRe")) %>%
+  mutate(
+    Patients = replace_na(Patients, 0),
+    Total = replace_na(Total, 0)
+  ) %>%
+  group_by(`Department name`) %>%
+  mutate(
+    Total = sum(Patients),
+    Proportion = ifelse(Total > 0, Patients / Total, 0)
+  ) %>%
+  ungroup()
+
+#  Exclude departments with zero total patients
+AWaRe_long <- AWaRe_long %>%
+  filter(Total > 0)
+
+# Format Hospital-Wide label to bold
+AWaRe_long <- AWaRe_long %>%
+  mutate(
+    PlotLabel = ifelse(
+      `Department name` == "Hospital-Wide",
+      "<b style='color:#0072B2;'>Hospital-Wide</b>",
+      `Department name`
+    ),
+    PlotLabel = factor(
+      PlotLabel,
+      levels = rev(c(
+        "<b style='color:#0072B2;'>Hospital-Wide</b>",
+        sort(setdiff(unique(`Department name`), "Hospital-Wide"))
+      ))
+    )
+  )
+
+# Build the plot
+ggplot(AWaRe_long, aes(x = PlotLabel, y = Proportion, fill = AWaRe)) +
+  
+  # Highlight Hospital-Wide row
+  annotate("rect", xmin = 0.5, xmax = 1.5, ymin = 0, ymax = 1,
+           fill = "gray95", alpha = 0.5) +
+  
+  # Stacked proportional bars
+  geom_bar(stat = "identity", position = "fill", width = 0.85) +
+  
+  # Percent labels inside bars (only if >5%)
+  geom_text(
+    aes(label = ifelse(Proportion > 0.05, scales::percent(Proportion, accuracy = 1), "")),
+    position = position_fill(vjust = 0.5),
+    size = 3.5, color = "black"
+  ) +
+  
+  # Total n= labels above bars
+  geom_text(
+    data = AWaRe_long %>% distinct(PlotLabel, Total),
+    aes(x = PlotLabel, y = 1.015, label = paste0("n=", Total)),
+    inherit.aes = FALSE,
+    size = 3, color = "gray30", hjust = 0
+  ) +
+  
+  # Color scale + legend with all categories shown
+  scale_fill_manual(
+    breaks = aware_levels_legend,
+    values = c(
+      "ACCESS" = "#1b9e77",
+      "WATCH"  = "#ff7f00"
+    ),
+    drop = FALSE  # ensure all AWaRe categories appear in legend even if zero
+  ) +
+  
+  # Flip bar orientation
+  coord_flip(ylim = c(0, 1.04)) +
+  
+  # Labels
+  labs(
+    title = "Use of Recommended IV Antibiotics by AWaRe Classification",
+    subtitle = "Proportions by department (percentages shown inside bars)",
+    x = "Department",
+    y = "Proportion of Patients",
+    fill = "AWaRe Classification"
+  ) +
+  
+  # Styling
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.y = ggtext::element_markdown(size = 10),  # enables bold Hospital-Wide
+    axis.text.x = element_text(size = 10),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    panel.border = element_rect(color = "gray70", fill = NA),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold", size = 9),
+    plot.margin = margin(10, 10, 10, 10)
+  )
+
+
+```
+
+
+***
+<div style="background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 12px; margin-top: 10px;"> 
+  <strong>💡 Note:</strong> The AWaRe classification divides antibiotics into three categories: Access, Watch, and Reserve. Access antibiotics are first-line treatments with a low risk of resistance, typically recommended for common infections. Watch antibiotics are associated with a higher risk of resistance and require careful monitoring. Reserve antibiotics are reserved for critical cases involving resistant infections, typically used only when other options are ineffective </strong>.
+  <br>
+</div>
+
+---
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈 Antibiotic Choice Appropriateness by line of treatment
+</h2>
+
+This visual summarises the proportion of antibiotic appropriateness for BJIs across hospital departments by line of treatment (First choice, Second choice)
+
+ 
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+
+# Define stacking and legend orders
+choice_levels_stack <- c("Second choice", "First choice")
+choice_levels_legend <- c("First choice", "Second choice")
+
+# Ensure all choices are present per department (for zeros)
+all_combos <- expand_grid(
+  `Department name` = unique(data_BJ_choice$`Department name`),
+  Choice = choice_levels_stack
+)
+
+# Build department-level summary with zeros
+choice_summary <- data_BJ_choice %>%
+  filter(AWaRe_compatible == TRUE, Route == "P", !is.na(Choice)) %>%
+  group_by(`Department name`, Choice) %>%
+  summarise(Prescriptions = n(), .groups = "drop") %>%
+  right_join(all_combos, by = c("Department name", "Choice")) %>%
+  mutate(Prescriptions = replace_na(Prescriptions, 0)) %>%
+  group_by(`Department name`) %>%
+  mutate(
+    Total = sum(Prescriptions),
+    Proportion = ifelse(Total > 0, Prescriptions / Total, 0)
+  ) %>%
+  ungroup() %>%
+  filter(Total > 0)  # Exclude departments with zero total prescriptions
+
+# Add Hospital-Wide summary (ensuring all choices included)
+hospital_summary <- data_BJ_choice %>%
+  filter(AWaRe_compatible == TRUE, Route == "P", !is.na(Choice)) %>%
+  group_by(Choice) %>%
+  summarise(Prescriptions = n(), .groups = "drop") %>%
+  right_join(tibble(Choice = choice_levels_stack), by = "Choice") %>%
+  mutate(Prescriptions = replace_na(Prescriptions, 0)) %>%
+  mutate(`Department name` = "Hospital-Wide") %>%
+  group_by(`Department name`) %>%
+  mutate(
+    Total = sum(Prescriptions),
+    Proportion = ifelse(Total > 0, Prescriptions / Total, 0)
+  ) %>%
+  ungroup()
+
+# Combine department + hospital data
+choice_summary <- bind_rows(choice_summary, hospital_summary)
+
+# Format labels: highlight Hospital-Wide and control order
+choice_summary <- choice_summary %>%
+  mutate(
+    PlotLabel = ifelse(
+      `Department name` == "Hospital-Wide",
+      "<b style='color:#0072B2;'>Hospital-Wide</b>",
+      `Department name`
+    ),
+    PlotLabel = factor(
+      PlotLabel,
+      levels = rev(c(
+        "<b style='color:#0072B2;'>Hospital-Wide</b>",
+        sort(setdiff(unique(`Department name`), "Hospital-Wide"))
+      ))
+    ),
+    Choice = factor(Choice, levels = choice_levels_stack)
+  )
+
+# Build the plot
+ggplot(choice_summary, aes(x = PlotLabel, y = Proportion, fill = Choice)) +
+  
+  # Highlight Hospital-Wide row
+  annotate("rect", xmin = 0.5, xmax = 1.5, ymin = 0, ymax = 1,
+           fill = "gray95", alpha = 0.5) +
+  
+  # Stacked proportional bars
+  geom_bar(stat = "identity", position = "fill", width = 0.85) +
+  
+  # % labels inside segments (only if >5%)
+  geom_text(
+    aes(label = ifelse(Proportion > 0.05, scales::percent(Proportion, accuracy = 1), "")),
+    position = position_fill(vjust = 0.5),
+    size = 3.5, color = "black"
+  ) +
+  
+  # Total n= labels above bars
+  geom_text(
+    data = choice_summary %>% distinct(PlotLabel, Total),
+    aes(x = PlotLabel, y = 1.015, label = paste0("n=", Total)),
+    inherit.aes = FALSE,
+    size = 3, color = "gray30", hjust = 0
+  ) +
+  
+  # Color scheme and legend (force all to show)
+  scale_fill_manual(
+    breaks = choice_levels_legend,
+    values = c(
+      "First choice"  = "#8E44AD",
+      "Second choice" = "#00BCD4"
+    ),
+    drop = FALSE
+  ) +
+  
+  # Flip to horizontal bars
+  coord_flip(ylim = c(0, 1.04)) +
+  
+  # Labels and titles
+  labs(
+    title = "Use of Recommended IV Antibiotics by Line of Treatment",
+    subtitle = "Proportions by department (percentages shown inside bars)",
+    x = "Department",
+    y = "Proportion of Patients",
+    fill = "Treatment Choice"
+  ) +
+  
+  # Theme and styling
+  theme_minimal(base_size = 10) +
+  theme(
+    axis.text.y = ggtext::element_markdown(size = 9),  # bold Hospital-Wide
+    axis.text.x = element_text(size = 9),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    panel.border = element_rect(color = "gray70", fill = NA),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold"),
+    plot.margin = margin(10, 10, 10, 10)
+  )
+
+
+
+```
+
+---
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📝 Summary of Antibiotic Choice Appropriateness for BJIs
+</h2>
+
+This section summarises the proportion of antibiotic **choice appropriateness** for BJIs across hospital departments based on the WHO AWaRe Book.
+
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+# Exclude hospital-wide row for department-level counts 
+qi_summary_BJ_filtered <- qi_summary_BJ %>%
+  filter(`Department name` != "Hospital-Wide")
+
+# Total eligible patients (excluding "Not eligible") 
+total_eligible <- qi_summary_BJ_filtered %>%
+  filter(!Indicator %in% c("Not eligible for AWaRe BJI QIs")) %>%
+  summarise(Total = sum(Patients, na.rm = TRUE)) %>%
+  pull(Total)
+
+# Total who received IV antibiotics 
+total_iv <- qi_summary_BJ_filtered %>%
+  filter(Indicator %in% c(
+    "Received recommended IV antibiotics", 
+    "Partially received recommended IV antibiotics", 
+    "Received IV antibiotics not among recommended options"
+  )) %>%
+  summarise(Total = sum(Patients, na.rm = TRUE)) %>%
+  pull(Total)
+
+#  HANDLE IF NO IV PATIENTS 
+if (total_iv == 0) {
+  final_summary_html <- HTML(glue::glue(
+    "<div style='background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 14px;'>
+    ⚠️ <strong>No summary available</strong> — there are currently no eligible BJI patients who received IV antibiotics.<br><br>
+    <em>This may indicate no patients met inclusion criteria or received IV antibiotics during the reporting period.</em>
+    </div>"
+  ))
+  htmltools::browsable(final_summary_html)
+
+} else {
+
+  # Summarise proportions per department (excluding Hospital-Wide) 
+  summary_data_BJ <- qi_summary_BJ_filtered %>%
+    filter(Indicator %in% c(
+      "Received recommended IV antibiotics", 
+      "Partially received recommended IV antibiotics", 
+      "Received IV antibiotics not among recommended options"
+    )) %>%
+    group_by(`Department name`, Indicator) %>%
+    summarise(Patients = sum(Patients), .groups = "drop") %>%
+    pivot_wider(names_from = Indicator, values_from = Patients, values_fill = 0) %>%
+    mutate(
+      Total = `Received recommended IV antibiotics` +
+              `Partially received recommended IV antibiotics` +
+              `Received IV antibiotics not among recommended options`,
+      Prop_Full = `Received recommended IV antibiotics` / Total,
+      Prop_Partial = `Partially received recommended IV antibiotics` / Total,
+      Prop_None = `Received IV antibiotics not among recommended options` / Total
+    ) %>%
+    filter(Total > 0)
+
+  # Add Hospital-Wide row separately (aggregate only for display) 
+  hospital_row <- summary_data_BJ %>%
+    summarise(
+      `Department name` = "Hospital-Wide",
+      `Received recommended IV antibiotics` = sum(`Received recommended IV antibiotics`),
+      `Partially received recommended IV antibiotics` = sum(`Partially received recommended IV antibiotics`),
+      `Received IV antibiotics not among recommended options` = sum(`Received IV antibiotics not among recommended options`)
+    ) %>%
+    mutate(
+      Total = `Received recommended IV antibiotics` +
+              `Partially received recommended IV antibiotics` +
+              `Received IV antibiotics not among recommended options`,
+      Prop_Full = `Received recommended IV antibiotics` / Total,
+      Prop_Partial = `Partially received recommended IV antibiotics` / Total,
+      Prop_None = `Received IV antibiotics not among recommended options` / Total
+    )
+
+  # Combine Hospital-Wide + department summaries 
+  summary_data_combined <- bind_rows(hospital_row, summary_data_BJ)
+
+  # Intro block 
+  intro_text <- glue::glue(
+    "   <div style='background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 14px; margin-top: 10px; margin-bottom: 10px;'>
+    💊 <strong>Denominator:</strong> Number of eligible patients who received any IV antibiotics for BJIs (<strong>{total_iv}</strong> out of {total_eligible}).
+    </div><br><br>
+    <strong>Summary:</strong><br><br>"
+  )
+
+  # Format <ul> blocks for each department 
+  formatted_blocks <- summary_data_combined %>%
+    mutate(block = pmap_chr(
+      list(
+        `Department name`,
+        Prop_Full, `Received recommended IV antibiotics`,
+        Prop_Partial, `Partially received recommended IV antibiotics`,
+        Prop_None, `Received IV antibiotics not among recommended options`,
+        Total
+      ),
+      function(dept, full_p, full_n, part_p, part_n, none_p, none_n, total_n) {
+        color <- if (dept == "Hospital-Wide") "#0072B2" else "#6c757d"
+        bg <- if (dept == "Hospital-Wide") "#f0f0f0" else "#ffffff"
+
+        glue::glue(
+          "<div style='background-color: {bg}; border-left: 5px solid {color}; padding: 14px; margin-bottom: 20px;'>
+          <strong>🏥 {dept}</strong> <span style='color: #888;'>(n = {total_n} patients)</span><br><br>
+          <ul style='margin-left: 1.2em; line-height: 1.7; padding-left: 0; list-style-type: none;'>
+            <li>✅ <strong>Received recommended IV antibiotics</strong> (as per WHO AWaRe Book): <strong>{scales::percent(full_p, accuracy = 0.1)}</strong> ({full_n} out of {total_n})</li>
+            <li>⚠️ <strong>Partially received recommended IV antibiotics</strong> (as per WHO AWaRe Book): <strong>{scales::percent(part_p, accuracy = 0.1)}</strong> ({part_n} out of {total_n})</li>
+            <li>❌ <strong>Received IV antibiotics not among recommended options</strong> (as per WHO AWaRe Book): <strong>{scales::percent(none_p, accuracy = 0.1)}</strong> ({none_n} out of {total_n})</li>
+          </ul>
+          </div>"
+        )
+      }
+    ))
+
+  # Combine and render output 
+  final_summary_html <- HTML(paste0(intro_text, paste(formatted_blocks$block, collapse = "\n")))
+  htmltools::browsable(final_summary_html)
+}
+
+```
+
+
+
+---
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈 Antibiotic Choice & Dosage Appropriateness for BJIs
+</h2>
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+
+
+# Data preparation: antibiotic choice & dosage appropriateness
+
+#   Filter BJ Patients and Add AWaRe Eligibility 
+data_BJ2 <- data_patients %>%
+  filter(`Diagnosis code` == "BJ") %>%
+  mutate(
+    Route = toupper(Route),
+    ATC5 = trimws(toupper(ATC5)),
+    AWaRe_compatible = ifelse(
+      `Age years` >= 18 & Indication == "CAI" & Treatment == "EMPIRICAL" & AWaRe %in% AWaRe_abx, TRUE, FALSE
+    )
+  )
+
+#   Lookup Drug & Dose Info 
+lookup2 <- data_lookup %>% filter(Code == "H_OAI_APPROP_DOSAGE")
+lookup_names2 <- unlist(lookup2[1, c("ABX-ATC-1", "ABX-ATC-2", "ABX-ATC-3", "ABX-ATC-4", "ABX-ATC-5", "ABX-ATC-6")], use.names = FALSE)
+lookup_names2 <- toupper(trimws(lookup_names2))
+
+#   Compute Total Daily Dose for each row  
+data_BJ2 <- data_BJ2 %>%
+  mutate(
+    Unit_Factor = case_when(
+      Unit == "mg" ~ 1,
+      Unit == "g"  ~ 1000,
+      TRUE         ~ NA_real_
+    ),
+    Total_Daily_Dose = as.numeric(`Single Unit Dose`) * as.numeric(`N Doses/day`) * Unit_Factor
+  )
+
+#   Match Drug + Dose + Route 
+for (i in 1:6) {
+  name_col <- paste0("ABX-ATC-", i)
+  dose_col <- paste0("ABX-DOSE-", i)
+  freq_col <- paste0("ABX-DAY-DOSE-", i)
+  unit_col <- paste0("ABX-UNIT-", i)
+  route_col <- paste0("ABX-ROUTE-", i)
+
+  dose_match_col <- paste0("Match_Drug_Dose_", i)
+
+  # Standardise lookup info
+  expected_dose <- as.numeric(lookup2[[dose_col]]) * as.numeric(lookup2[[freq_col]])
+  dose_unit_factor <- case_when(
+    lookup2[[unit_col]] == "mg" ~ 1,
+    lookup2[[unit_col]] == "g"  ~ 1000,
+    TRUE                       ~ NA_real_
+  )
+  total_expected_dose <- expected_dose * dose_unit_factor
+  drug_lookup <- toupper(trimws(lookup2[[name_col]]))
+
+  # Create matching column
+  data_BJ2[[dose_match_col]] <- ifelse(
+    data_BJ2$ATC5 == drug_lookup &
+      abs(data_BJ2$Total_Daily_Dose - total_expected_dose) < 1,
+    TRUE, FALSE
+  )
+}  
+
+#   Summarise at Patient Level 
+patient_summary2 <- data_BJ2 %>%
+  filter(AWaRe_compatible) %>%
+  group_by(`Survey Number`, `Department name`) %>%
+  summarise(
+    Match_1_P = any(ATC5 == lookup_names2[1] & Route == "P"),
+    Match_2_P = any(ATC5 == lookup_names2[2] & Route == "P"),
+    Match_3_P = any(ATC5 == lookup_names2[3] & Route == "P"),
+    Match_4_P = any(ATC5 == lookup_names2[4] & Route == "P"),
+    Match_5_P = any(ATC5 == lookup_names2[5] & Route == "P"),
+    Match_6_P = any(ATC5 == lookup_names2[6] & Route == "P"),
+
+    Dose_1_OK = any(Match_Drug_Dose_1),
+    Dose_2_OK = any(Match_Drug_Dose_2),
+    Dose_3_OK = any(Match_Drug_Dose_3),
+    Dose_4_OK = any(Match_Drug_Dose_4),
+    Dose_5_OK = any(Match_Drug_Dose_5),
+    Dose_6_OK = any(Match_Drug_Dose_6),
+
+    Any_IV = any(Route == "P"),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Any_Match = Match_1_P | Match_2_P | Match_3_P | Match_4_P | Match_5_P | Match_6_P,
+    Any_Correct_Dose = 
+      (Match_1_P & Dose_1_OK) |
+      (Match_2_P & Dose_2_OK) |
+      (Match_3_P & Dose_3_OK) |
+      (Match_4_P & Dose_4_OK) |
+      (Match_5_P & Dose_5_OK) |
+      (Match_6_P & Dose_6_OK),
+
+    Dose_Result = case_when(
+      Any_Correct_Dose ~ "Received recommended IV antibiotic with recommended dosage",
+      Any_Match & !Any_Correct_Dose ~ "Received recommended IV antibiotic without recommended dosage",
+      Any_IV & !Any_Match ~ "Received IV antibiotics not among recommended options",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(Dose_Result))
+
+
+# Summarise by department 
+iv_dose_counts <- patient_summary2 %>%
+  count(`Department name`, Dose_Result, name = "Patients")
+
+# Complete combinations: all depts × both results
+all_combos2 <- expand_grid(
+  `Department name` = unique(patient_summary2$`Department name`),
+  Dose_Result = c("Received recommended IV antibiotic with recommended dosage", "Received recommended IV antibiotic without recommended dosage", "Received IV antibiotics not among recommended options")
+)
+
+# Merge and fill missing
+iv_dose_summary2 <- all_combos2 %>%
+  left_join(iv_dose_counts, by = c("Department name", "Dose_Result")) %>%
+  mutate(Patients = replace_na(Patients, 0)) %>%
+  group_by(`Department name`) %>%
+  mutate(Total = sum(Patients),
+         Proportion = round(100 * Patients / Total, 1)) %>%
+  ungroup()
+
+#  Hospital-Wide row
+hospital_row2 <- iv_dose_summary2 %>%
+  group_by(Dose_Result) %>%
+  summarise(Patients = sum(Patients), .groups = "drop") %>%
+  mutate(`Department name` = "Hospital-Wide") %>%
+  group_by(`Department name`) %>%
+  mutate(Total = sum(Patients),
+         Proportion = round(100 * Patients / Total, 1)) %>%
+  ungroup()
+
+#  Final summary table
+final_summary2 <- bind_rows(iv_dose_summary2, hospital_row2) %>%
+  arrange(`Department name`, Dose_Result)
+
+```
+
+
+This visual summarises the proportion of antibiotic choice & dosage appropriateness for IAIs across hospital departments based on the WHO AWaRe Book.
+ 
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+# Order factor for bar stacking
+final_summary2$Dose_Result <- factor(
+  final_summary2$Dose_Result,
+  levels = c("Received recommended IV antibiotic with recommended dosage", "Received recommended IV antibiotic without recommended dosage", "Received IV antibiotics not among recommended options")
+)
+
+#  Create styled PlotLabel
+final_summary2 <- final_summary2 %>%
+  mutate(
+    PlotLabel = ifelse(
+      `Department name` == "Hospital-Wide",
+      "<b style='color:#0072B2;'>Hospital-Wide</b>",
+      `Department name`
+    )
+  )
+
+# Define factor order (Hospital-Wide first, rest sorted)
+ordered_labels <- c(
+  "<b style='color:#0072B2;'>Hospital-Wide</b>",
+  sort(unique(final_summary2$PlotLabel[final_summary2$PlotLabel != "<b style='color:#0072B2;'>Hospital-Wide</b>"]))
+)
+final_summary2$PlotLabel <- factor(final_summary2$PlotLabel, levels = rev(ordered_labels))
+
+#  Extract unique n= label data with PlotLabel applied
+label_data <- final_summary2 %>%
+  distinct(`Department name`, Total) %>%
+  mutate(
+    PlotLabel = ifelse(
+      `Department name` == "Hospital-Wide",
+      "<b style='color:#0072B2;'>Hospital-Wide</b>",
+      `Department name`
+    ),
+    PlotLabel = factor(PlotLabel, levels = levels(final_summary2$PlotLabel))
+  )
+
+#  Plot
+ggplot(final_summary2, aes(x = PlotLabel, y = Proportion, fill = Dose_Result)) +
+
+  # Highlight hospital-wide row
+  annotate("rect",
+           xmin = 0.5, xmax = 1.5, ymin = 0, ymax = 1,
+           fill = "gray95", alpha = 0.5) +
+
+  # Stacked bars
+  geom_bar(stat = "identity", position = "fill", width = 0.85) +
+
+  # Count % inside bars
+  geom_text(
+    aes(label = ifelse(Proportion > 0.05, paste0(round(Proportion * 1, 1), "%"), "")),
+    position = position_fill(vjust = 0.5),
+    size = 3, color = "black"
+  ) +
+
+  # n= labels on top
+  geom_text(
+    data = label_data,
+    aes(x = PlotLabel, y = 1.015, label = paste0("n=", Total)),
+    inherit.aes = FALSE,
+    size = 3, color = "gray30", hjust = 0
+  ) +
+
+  # Custom fill colors
+  scale_fill_manual(
+    breaks = c("Received recommended IV antibiotic with recommended dosage", "Received recommended IV antibiotic without recommended dosage", "Received IV antibiotics not among recommended options"),
+    values = c("Received recommended IV antibiotic with recommended dosage" = "#084594", "Received recommended IV antibiotic without recommended dosage" = "#FC9272", "Received IV antibiotics not among recommended options" = "#D3D3D3")
+  ) +
+
+  coord_flip(ylim = c(0, 1.05)) +
+
+  labs(
+    title = "Summary of Dosage Appropriateness for BJIs Cases with Recommended Antibiotic Choices",
+    subtitle = "Each bar shows distribution of appropriateness against WHO AWaRe guidelines (n = raw patient counts)",
+    x = "Department",
+    y = "Proportional Stacked Bars",
+    fill = "Treatment Appropriateness Category"
+  ) +
+
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.y = element_markdown(size = 8),  
+    axis.title = element_text(face = "bold"),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(margin = margin(r = 2)),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 10),
+    plot.subtitle = element_text(hjust = 0.5, size = 8, color = "gray30"),
+    panel.border = element_rect(color = "gray70", fill = NA, size = 0.8),
+    plot.margin = margin(10, 80, 10, 10)
+  ) +
+  guides(
+    fill = guide_legend(nrow = 3, byrow = TRUE, title.position = "top")
+  )
+
+
+
+```
+
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📝 Summary of Antibiotic Dosage Appropriateness for BJI
+</h2>
+
+This section summarises the proportion of antibiotic **dosage appropriateness** for BJIs across hospital departments based on the WHO AWaRe Book.
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+# Exclude Hospital for total count summary 
+final_summary2_BJ_filtered <- final_summary2 %>%
+  filter(`Department name` != "Hospital-Wide")
+
+#  Calculate total eligible patients who received IV antibiotics with dosage data 
+total_approp_iv_given <- final_summary2_BJ_filtered %>%
+  filter(Dose_Result %in% c("Received recommended IV antibiotic with recommended dosage", "Received recommended IV antibiotic without recommended dosage")) %>%
+  summarise(Total = sum(Patients, na.rm = TRUE)) %>%
+  pull(Total)
+
+#  HANDLE EMPTY CASE 
+if (total_approp_iv_given == 0) {
+
+  final_summary_html2 <- HTML(glue::glue(
+    "<div style='background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 14px; margin-top: 10px;'>
+    ⚠️ <strong>No summary available</strong> — there are currently no BJI patients who received a recommended IV antibiotic with dosage data.<br><br>
+    <em>This may indicate that no patients received antibiotics with recommended dosing, or none met inclusion criteria.</em>
+    </div>"
+  ))
+
+  htmltools::browsable(final_summary_html2)
+
+} else {
+
+  # Indicator intro explanation 
+  intro_text2 <- glue::glue(
+    "<div style='background-color: #f8f9fa; border-left: 5px solid #17a2b8; padding: 14px; margin-top: 10px; margin-bottom: 10px;'>
+    💊 <strong>Denominator:</strong> Number of eligible BJI patients who received any recommended (<em>or partially recommended</em>) IV antibiotic choice based on WHO AWaRe Book (<strong>{total_approp_iv_given}</strong> out of <strong>{total_eligible}</strong>).
+    </div><br><br>
+    <strong>Summary:</strong><br><br>"
+  )
+
+  # Ensure complete combinations (in case of missing dose categories) 
+  dept_list <- unique(final_summary2$`Department name`)
+  dose_categories <- c(
+    "Received recommended IV antibiotic with recommended dosage",
+    "Received recommended IV antibiotic without recommended dosage"
+  )
+
+  complete_summary <- expand_grid(
+    `Department name` = dept_list,
+    Dose_Result = dose_categories
+  ) %>%
+    left_join(final_summary2, by = c("Department name", "Dose_Result")) %>%
+    mutate(
+      Patients = replace_na(Patients, 0),
+      Total = ave(Patients, `Department name`, FUN = sum),
+      Proportion = ifelse(Total == 0, 0, Patients / Total)
+    )
+
+  # Format styled HTML blocks for each department 
+  formatted_blocks2 <- complete_summary %>%
+    group_by(`Department name`) %>%
+    summarise(
+      block = {
+        dept <- first(`Department name`)
+        color <- if (dept == "Hospital-Wide") "#0072B2" else "#6c757d"
+        bg <- if (dept == "Hospital-Wide") "#f0f0f0" else "#ffffff"
+
+        glue::glue(
+          "<div style='background-color: {bg}; border-left: 5px solid {color}; padding: 14px; margin-bottom: 20px;'>
+          <strong>🏥 {dept}</strong> <span style='color: #888;'>(n = {first(Total)} patients)</span><br><br>
+          <ul style='margin-left: 1.2em; line-height: 1.7; padding-left: 0; list-style-type: none;'>
+            <li>✅ <strong>Received recommended IV antibiotic with recommended dosage</strong> (as per WHO AWaRe Book): <strong>{scales::percent(Proportion[Dose_Result == 'Received recommended IV antibiotic with recommended dosage'], accuracy = 0.1)}</strong> ({Patients[Dose_Result == 'Received recommended IV antibiotic with recommended dosage']} out of {first(Total)})</li>
+            <li>❌ <strong>Received recommended IV antibiotic without recommended dosage</strong> (as per WHO AWaRe Book): <strong>{scales::percent(Proportion[Dose_Result == 'Received recommended IV antibiotic without recommended dosage'], accuracy = 0.1)}</strong> ({Patients[Dose_Result == 'Received recommended IV antibiotic without recommended dosage']} out of {first(Total)})</li>
+          </ul>
+          </div>"
+        )
+      },
+      .groups = "drop"
+    )
+
+  # Reorder Hospital-Wide first
+  formatted_blocks2 <- formatted_blocks2 %>%
+    mutate(order = ifelse(`Department name` == "Hospital-Wide", 0, 1)) %>%
+    arrange(order, `Department name`) %>%
+    select(-order)
+
+  # Final HTML output
+  final_summary_html2 <- HTML(paste0(intro_text2, paste(formatted_blocks2$block, collapse = "\n")))
+  htmltools::browsable(final_summary_html2)
+}
+
+
+```
