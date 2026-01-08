@@ -181,10 +181,10 @@ The **Download Annotated Source Dataset for QI Eligible Cases** section allows d
 <h2>🔗 Related Resources</h2>
 
 <ul>
-    <li><a href="#">Antibiotic Policy Group (APG) Website</a></li>
-    <li><a href="#">Global Point Prevalence Survey (Global-PPS)</a></li>
-    <li><a href="#">WHO AWaRe Classification</a></li>
-    <li><a href="#">WHO AWaRe Antibiotic Book</a></li>
+    <li><a href="https://antibioticpolicy.org/">Antibiotic Policy Group (APG) Website</a></li> <!-- Official APG site showing research & AWaRe resources. :contentReference[oaicite:0]{index=0} -->
+    <li><a href="https://www.global-pps.com/">Global Point Prevalence Survey (Global-PPS)</a></li> <!-- Official Global‑PPS site with survey tools & resources. :contentReference[oaicite:1]{index=1} -->
+    <li><a href="https://www.who.int/teams/surveillance-prevention-control-AMR/control-and-response-strategies/AWaRe">WHO AWaRe Classification</a></li> <!-- WHO AWaRe stewardship overview & tools. :contentReference[oaicite:2]{index=2} -->
+    <li><a href="https://www.who.int/publications/i/item/9789240062382">WHO AWaRe Antibiotic Book</a></li> <!-- WHO AWaRe antibiotic guide & download. :contentReference[oaicite:3]{index=3} -->
     <li>Relevant Publications – see <code>docs/</code> for references</li>
 </ul>
 
