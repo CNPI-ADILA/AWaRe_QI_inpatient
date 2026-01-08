@@ -194,8 +194,38 @@ AWaRe_QI_Inpatient/
 
 <hr>
 
-
-
 </body>
 </html>
+
+---
+
+### Our Partners & Supporters
+
+<div align="center">
+
+<a href="https://cnpi-amr.org/research/adila/" target="_blank">
+  <img src="www/img/ADILA%20Logo.png" alt="ADILA Logo" width="80px" style="margin: 0 10px;">
+</a>
+<a href="https://antibioticpolicy.org/" target="_blank">
+  <img src="www/img/APG_logo_primary.jpg" alt="APG Logo" width="80px" style="margin: 0 10px;">
+</a>
+<a href="https://cnpi.org.uk/" target="_blank">
+  <img src="www/img/CNPI%20Logo_Horz_RGB.jpg" alt="CNPI Logo" width="80px" style="margin: 0 10px;">
+</a>
+<a href="https://www.citystgeorges.ac.uk/" target="_blank">
+  <img src="www/img/city_logo.png" alt="City St Georges Logo" width="80px" style="margin: 0 10px;">
+</a>
+<a href="https://www.flemingfund.org/" target="_blank">
+  <img src="www/img/Fleming%20Fund%20Logo.png" alt="Fleming Fund Logo" width="80px" style="margin: 0 10px;">
+</a>
+<a href="https://wellcome.org/" target="_blank">
+  <img src="www/img/Wellcome%20trust%20logo.png" alt="Wellcome Trust Logo" width="80px" style="margin: 0 10px;">
+</a>
+<a href="https://www.global-pps.com/" target="_blank">
+  <img src="www/img/logo%20Global%20PPS%20DEF.png" alt="Global PPS Logo" width="80px" style="margin: 0 10px;">
+</a>
+
+</div>
+
+
 
