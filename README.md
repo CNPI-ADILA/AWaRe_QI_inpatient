@@ -17,6 +17,12 @@ The dashboard uses existing antimicrobial use (AMU) surveillance data, specifica
 
 Although the dashboard is built on the Global-PPS data structure, a Data Standardisation (Conversion) Guide is provided to enable facilities using other surveillance systems (e.g. WHO PPS) to adapt their data and benefit from the dashboard outputs. 
 
+
+<p>
+To access and explore the <strong>live dashboard</strong>, you can do so here:  
+👉 <a href="https://antibiotic-policy-group.shinyapps.io/AWaRe-QI-inpatient/" target="_blank" rel="noopener noreferrer"><strong>AWaRe QI Inpatient Dashboard</strong></a>
+</p>
+
 #### Repository Structure  
 ``` text
 AWaRe_QI_Inpatient/
@@ -34,6 +40,60 @@ AWaRe_QI_Inpatient/
 ├──LICENSE  
 ├──README
 ```
+
+<hr>
+
+<h2>📚 Supporting Documentation</h2>
+
+<p>The <code>docs/</code> folder includes comprehensive guidance for dashboard users and analysts:</p>
+
+<table>
+    <tr>
+        <th>Document</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td>User Manual</td>
+        <td>Step-by-step instructions for dashboard setup and use</td>
+    </tr>
+    <tr>
+        <td>AMU Interpretation Guide</td>
+        <td>How to interpret AWaRe QIs and performance metrics</td>
+    </tr>
+    <tr>
+        <td>Graph Interpretation Guide</td>
+        <td>Explains dashboard visualizations</td>
+    </tr>
+    <tr>
+        <td>Data Standardisation (Conversion) Guide</td>
+        <td>Prepares input data for compatibility with the Global-PPS structure</td>
+    </tr>
+</table>
+
+<p>These resources are designed for AMS teams, data analysts, and policy stakeholders.</p>
+
+<hr>
+
+<h2>🧪 Navigate Using Dummy Data</h2>
+
+<p>The <code>data/</code> folder provides example datasets that allow you to:</p>
+<ul>
+    <li>Explore all dashboard features</li>
+    <li>Navigate across AWaRe indicators and conditions</li>
+    <li>Test report generation without exposing real or sensitive data</li>
+</ul>
+
+<hr>
+
+<h2>📄 Reports (R Markdown)</h2>
+
+<p>The <code>markdown_reports/</code> directory contains R Markdown templates for:</p>
+<ul>
+    <li>Automated inpatient feedback reports</li>
+    <li>Condition-specific summaries (e.g., sepsis, meningitis, etc.)</li>
+</ul>
+
+<hr>
 
 <h2>🚀 Running the AWaRe QI Inpatient Dashboard Locally</h2>
 
@@ -94,60 +154,6 @@ AWaRe_QI_Inpatient/
   </li>
 </ol>
 
-
-
-<hr>
-
-<h2>🧪 Navigate Using Dummy Data</h2>
-
-<p>The <code>data/</code> folder provides example datasets that allow you to:</p>
-<ul>
-    <li>Explore all dashboard features</li>
-    <li>Navigate across AWaRe indicators and conditions</li>
-    <li>Test report generation without exposing real or sensitive data</li>
-</ul>
-
-<hr>
-
-<h2>📄 Reports (R Markdown)</h2>
-
-<p>The <code>markdown_reports/</code> directory contains R Markdown templates for:</p>
-<ul>
-    <li>Automated inpatient feedback reports</li>
-    <li>Condition-specific summaries (e.g., sepsis, meningitis, etc.)</li>
-</ul>
-
-
-<hr>
-
-<h2>📚 Supporting Documentation</h2>
-
-<p>The <code>docs/</code> folder includes comprehensive guidance for dashboard users and analysts:</p>
-
-<table>
-    <tr>
-        <th>Document</th>
-        <th>Description</th>
-    </tr>
-    <tr>
-        <td>User Manual</td>
-        <td>Step-by-step instructions for dashboard setup and use</td>
-    </tr>
-    <tr>
-        <td>AMU Interpretation Guide</td>
-        <td>How to interpret AWaRe QIs and performance metrics</td>
-    </tr>
-    <tr>
-        <td>Graph Interpretation Guide</td>
-        <td>Explains dashboard visualizations</td>
-    </tr>
-    <tr>
-        <td>Data Standardisation (Conversion) Guide</td>
-        <td>Prepares input data for compatibility with the Global-PPS structure</td>
-    </tr>
-</table>
-
-<p>These resources are designed for AMS teams, data analysts, and policy stakeholders.</p>
 
 <hr>
 
