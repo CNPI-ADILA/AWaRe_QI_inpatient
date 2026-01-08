@@ -43,7 +43,7 @@ AWaRe_QI_Inpatient/
     <ul>
       <li>Go to your GitHub repository: <a href="https://github.com/CNPI-ADILA/AWaRe_QI_inpatient/tree/main" target="_blank" rel="noopener noreferrer">https://github.com/CNPI-ADILA/AWaRe_QI_inpatient/tree/main</a></li>
       <li>Click the <strong>Code</strong> button → <strong>Download ZIP</strong></li>
-      <li>Extract the ZIP file to a folder on your computer (e.g., <code>C:/Projects/AWaRe_QI_Inpatient/</code>)</li>
+      <li>Extract the ZIP file to a folder on your computer (e.g., <code>C:/AWaRe_QI_inpatient-main/code>)</li>
     </ul>
   </li>
 
@@ -89,7 +89,7 @@ AWaRe_QI_Inpatient/
       <li>In RStudio, go to <strong>File → Open File</strong>, navigate to the extracted folder, and open <code>app.R</code></li>
       <li>Run the app by clicking <strong>Run App</strong> in RStudio or using this command in the console:</li>
     </ul>
-    <pre><code>shiny::runApp("C:/Projects/AWaRe_QI_Inpatient/")</code></pre>
+    <pre><code>shiny::runApp("C:/AWaRe_QI_inpatient-main/")</code></pre>
     <p>The dashboard will open in your default web browser at <a href="http://127.0.0.1:3838" target="_blank" rel="noopener noreferrer">http://127.0.0.1:xxxx/</a></p>
   </li>
 </ol>
