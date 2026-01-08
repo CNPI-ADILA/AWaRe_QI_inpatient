@@ -80,7 +80,7 @@ AWaRe_QI_Inpatient/
   "writexl",
   "openxlsx"
 ))</code></pre>
-    <p>⚠️ Some packages like <code>ggtext</code>, <code>kableExtra</code>, or <code>shinyjs</code> may require additional system dependencies (fonts or JavaScript support). Follow the prompts if R asks for them.</p>
+   
   </li>
 
   <li>
@@ -111,14 +111,12 @@ AWaRe_QI_Inpatient/
 
 <h2>📄 Reports (R Markdown)</h2>
 
-<p>The <code>inpatient_rmarkdown_reports/</code> directory contains R Markdown templates for:</p>
+<p>The <code>markdown_reports/</code> directory contains R Markdown templates for:</p>
 <ul>
     <li>Automated inpatient feedback reports</li>
     <li>Condition-specific summaries (e.g., sepsis, meningitis, etc.)</li>
 </ul>
 
-<p>You can render reports directly in RStudio or via:</p>
-<pre><code>rmarkdown::render("inpatient_rmarkdown_reports/report_template.Rmd")</code></pre>
 
 <hr>
 
