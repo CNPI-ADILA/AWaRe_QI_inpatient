@@ -96,7 +96,9 @@ AWaRe_QI_Inpatient/
 <hr>
 
 <h2>🚀 Running the AWaRe QI Inpatient Dashboard Locally</h2>
-
+<p>The repository includes all necessary R Shiny and R Markdown source files for users who prefer to run or modify the dashboard locally. This allows full control over 
+configuration, data input, and customization for research or institutional use. </p>
+<p>To run the dashboard locally:</p>
 <ol>
   <li>
     <strong>Download the Repository</strong>
