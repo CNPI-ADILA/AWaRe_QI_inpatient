@@ -1,0 +1,976 @@
+---
+title: '[0] General Summary: QI gPPS Analysis Report'
+author: "CNPI AMR"
+date: "Last compiled on `r format(Sys.time(), '%A %d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+    theme: flatly
+    df_print: paged
+    highlight: tango
+    fig_width: 10
+    fig_height: 6
+    fig_caption: true
+    code_folding: hide
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+---
+
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+  📊 Report Overview
+</h1>
+
+This report presents a **summary analysis** of the Global PPS (gPPS) inpatient dataset using the **WHO AWaRe classification framework**.  
+The focus is on **empirical antibiotic prescribing practices** in adults with **Seven different** **community-acquired infections (CAIs)** in addition to **surgical prophylaxis (SP)**, aligned with WHO's AWaRe Quality Indicators (QIs).
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+<strong>1- Clinical Sepsis of Unknown Origin</strong> (Based on WHO AWaRe book)<br>
+▸ <strong>gPPS diagnostic code:</strong> <code>SEPSIS</code><br>
+▸ <strong>gPPS definition:</strong> Sepsis of any origin (e.g., urosepsis, pulmonary sepsis, etc.), sepsis syndrome, or septic shock with no clear anatomic site, including candidemia with septic symptoms.
+</div>
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+<strong>2- Bacterial Meningitis</strong> (Based on WHO AWaRe book)<br>
+▸ <strong>gPPS diagnostic code:</strong> <code>CNS</code><br>
+▸ <strong>gPPS definition:</strong> Includes central nervous system infections.
+</div>
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+<strong>3- Community-acquired Pneumonia</strong> (Based on WHO AWaRe book)<br>
+▸ <strong>gPPS diagnostic code:</strong> <code>Pneu</code><br>
+▸ <strong>gPPS definition:</strong> Includes pneumonia and other lower respiratory tract infections (LRTIs).
+</div>
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+<strong>4- Intra-abdominal Infections</strong> (Based on WHO AWaRe book)<br>
+▸ <strong>gPPS diagnostic code:</strong> <code>IA</code><br>
+▸ <strong>gPPS definition:</strong> Includes hepatobiliary infections, intra-abdominal abscesses, and general abdominal sepsis.
+</div>
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+<strong>5- Upper Urinary Tract Infections</strong> (Based on WHO AWaRe book)<br>
+▸ <strong>gPPS diagnostic code:</strong> <code>Pye</code><br>
+▸ <strong>gPPS definition:</strong> Includes pyelonephritis and catheter-associated upper urinary tract infections.
+</div>
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+<strong>6- Skin/Soft Tissue Infections</strong> (Based on WHO AWaRe book)<br>
+▸ <strong>gPPS diagnostic code:</strong> <code>SST</code><br>
+▸ <strong>gPPS definition:</strong> Includes cellulitis, wound infections (including surgical site infections), deep soft tissue not involving bone (e.g., infected pressure ulcers, diabetic ulcers), and abscesses.
+</div>
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+<strong>7- Bone and Joint Infections</strong> (Based on WHO AWaRe book)<br>
+▸ <strong>gPPS diagnostic code:</strong> <code>BJ</code><br>
+▸ <strong>gPPS definition:</strong> Includes septic arthritis (including prosthetic joint infections) and osteomyelitis.
+</div>
+
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+<strong>8- Surgical Prophylaxis</strong> (Based on WHO AWaRe book)<br>
+▸ <strong>gPPS diagnostic code:</strong> <code>Proph</code> (including all surgical prophylaxis codes)<br>
+▸ <strong>gPPS indication:</strong> <code>SP1, SP2, SP3</code><br>
+▸ <strong>gPPS definition:</strong> Antibiotics given before, during, or after surgical procedures.
+</div>
+
+---
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+💬 Additional Notes
+</h2>
+
+- Each condition was mapped based on **clinical assumptions** that align WHO QIs with gPPS diagnostic coding.
+- The **intravenous (IV) route** was identified using the gPPS \"Route\" code <code>P</code> (Parenteral), encompassing IV, intrathecal, and intraperitoneal administration.
+  - While \"P\" is not exclusively IV, it is used here as a **proxy for IV administration** given its predominance in empirical treatment practices.
+- This script, along with subsequent ones, implements the WHO AWaRe (Access, Watch, Reserve) antibiotic use QIs for managing the conditions mentioned above in **adult inpatients** with CAIs or SP.
+- It uses standardised  data from the gPPS, specifically extracted from the **Excel-based outputs** received from gPPS by participating hospitals.
+
+
+---
+<div style="background-color: #e9f7fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 10px;">
+Only <strong>adult patients</strong> on <strong>empirical treatment</strong> with <strong>CAIs</strong> or <strong>SP</strong> indications deemed eligible for this analysis.
+</div>
+
+***
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+🔎 Patients eligibility check
+</h2>
+
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+rm(list = ls()) #clear global environment
+
+# Define required packages
+packages <- c(
+  "dplyr", 
+  "tidyverse", 
+  "readxl", 
+  "glue", 
+  "purrr",
+  "tidyr",
+  "scales",
+  "htmltools", 
+  "ggtext", 
+  "forcats",
+  "kableExtra"
+)
+
+# Install missing packages
+new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
+if (length(new_packages)) install.packages(new_packages)
+
+# Load all packages
+invisible(lapply(packages, library, character.only = TRUE))
+
+
+
+# Read the sheets (Patient & Department forms)
+
+data_deps <- read_excel("HA-Global-PPS_example_dummy data.xlsx", sheet = "Department forms")
+data_patients_all <- read_excel("HA-Global-PPS_example_dummy data.xlsx", sheet = "Patient forms")
+
+# Select the needed data and merge the sheets to create a simpler version.
+data_patients <- data_patients_all %>%
+  select("Survey Number", "Department name", "Department type", "Age years", "AWaRe", "Diagnosis code", "Indication", "Treatment")
+
+# Standardised Proph codes to make it easier in coding
+data_patients <- data_patients %>%
+  mutate(
+    `Diagnosis code` = ifelse(
+      Indication %in% c("SP1", "SP2", "SP3"),
+      "Proph",
+      `Diagnosis code`
+    ),
+    Treatment = ifelse(
+      Indication %in% c("SP1", "SP2", "SP3") & (is.na(Treatment) | Treatment == ""),
+      "EMPIRICAL",
+      Treatment
+    )
+  )
+
+
+data_patients <- data_patients %>%
+  mutate(
+    AWaRe = ifelse(
+      toupper(AWaRe) == "NOT_RECOMMENDED",
+      "NOT RECOMMENDED",
+      AWaRe
+    )
+  )
+
+# Define the specific infection types to include
+infection_types <- c("SEPSIS", "CNS", "Pneu", "IA", "Pye", "SST", "BJ", "Proph")
+
+AWaRe_abx <- c("ACCESS", "WATCH", "RESERVE", "NOT RECOMMENDED", "UNCLASSIFIED")
+
+data_patients[data_patients==""]<-NA     # makes all empty spaces to N/A
+
+
+
+# Define diagnostic codes and their labels
+diagnostic_labels <- c(
+  SEPSIS = "Undifferentiated Sepsis",
+  CNS    = "Meningitis",
+  Pneu   = "Respiratory Tract Infection",
+  IA     = "Intra-abdominal Infection",
+  Pye    = "Upper Urinary Tract Infection",
+  SST    = "Skin/Soft Tissue Infection",
+  BJ     = "Bone/Joint Infection",
+  Proph  = "Surgical Prophylaxis"
+)
+
+# Indications for surgical prophylaxis
+surgical_indications <- c("SP1", "SP2", "SP3")
+
+# Count eligible cases (adult patients on empiric antibiotics for CAIs/ or SP)
+eligible_counts <- data_patients %>%
+  filter(`Diagnosis code` %in% names(diagnostic_labels)) %>%
+  mutate(
+    AWaRe_compatible = case_when(
+      `Diagnosis code` == "Proph" & Indication %in% surgical_indications & `Age years` >= 18 & Treatment == "EMPIRICAL" ~ TRUE,
+      `Diagnosis code` != "Proph" & Indication == "CAI" & `Age years` >= 18 & Treatment == "EMPIRICAL" ~ TRUE,
+      TRUE ~ FALSE
+    )
+  ) %>%
+  filter(AWaRe_compatible) %>%
+  filter(AWaRe %in% AWaRe_abx) %>%
+  distinct(`Diagnosis code`, `Survey Number`) %>%
+  count(`Diagnosis code`)
+
+# Merge with full diagnostics
+full_diagnostics <- tibble(`Diagnosis code` = names(diagnostic_labels))
+
+# Prepare cleaned data
+eligible_summary <- full_diagnostics %>%
+  left_join(eligible_counts, by = "Diagnosis code") %>%
+  mutate(
+    `N of Eligible Patients` = replace_na(n, 0),
+    Condition = diagnostic_labels[`Diagnosis code`],
+    `Analysis suitability` = case_when(
+      `N of Eligible Patients` > 10 ~ "✅",
+      `N of Eligible Patients` == 0 ~ "⚠️",
+      TRUE ~ "⚠️"
+    )
+  ) %>%
+  arrange(`Diagnosis code`) %>%
+  select(Condition, `N of Eligible Patients`, `Analysis suitability`)
+
+# Build HTML table header inside a centered div
+table_html <- glue("
+<div style='text-align: center;'>
+<table class='table table-striped table-hover' style='margin: auto; font-size: 14px;'>
+  <thead style='background-color: #f8f9fa;'>
+    <tr>
+      <th style='text-align:left;'>Condition</th>
+      <th style='text-align:center;'>N of Eligible Patients</th>
+      <th style='text-align:center;'>Analysis Suitability</th>
+    </tr>
+  </thead>
+  <tbody>
+")
+
+# Add rows dynamically
+for (i in seq_len(nrow(eligible_summary))) {
+  table_html <- glue("{table_html}
+    <tr>
+      <td style='text-align:left;'>{eligible_summary$Condition[i]}</td>
+      <td style='text-align:center;'>{eligible_summary$`N of Eligible Patients`[i]}</td>
+      <td style='text-align:center;'>{eligible_summary$`Analysis suitability`[i]}</td>
+    </tr>")
+}
+
+# Close table and div
+table_html <- glue("{table_html}
+  </tbody>
+</table>
+</div>
+")
+
+# Display it
+HTML(table_html)
+
+
+```
+
+
+
+<br><div style='background-color: #f8f9fa; padding: 10px; border-left: 5px solid #17a2b8;'>
+  <strong>💡 Note:</strong> The script is designed to work best with <strong>>10</strong> eligible cases per diagnostic group. Groups with fewer patients will still run, but results may be limited in insights and interpretability. <br>
+</div>
+
+<div style="background-color: #f8f9fa; border-left: 5px solid #ffc107; padding: 10px; margin-top: 10px;">
+<strong>💡 Important:</strong> Groups with fewer than 10 patients are analysed with caution for interpretability.
+</div>
+
+
+***
+
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+🏥 Admissions & Treatments by Department </h1>
+
+This section summrises the number of admitted and treated patients in different department across the hospital 
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+# summarise total patients in the hospital
+total_patients_text <- sprintf(
+  "The total number of patients admitted in the hospital is <strong>%d</strong>.", 
+  sum(data_deps$Patients, na.rm = TRUE)
+)
+
+# Patients per Department Type summary
+patients_per_department_text <- data_deps %>%
+  group_by(`Department type`) %>%
+  summarise(Patients = sum(Patients, na.rm = TRUE), .groups = "drop") %>%
+  mutate(
+    Summary = sprintf("Department type: <strong>%s</strong> has <strong>%d</strong> patients.", `Department type`, Patients)
+  ) %>%
+  pull(Summary) %>%
+  paste(collapse = "\n")
+
+# Patients per Activity Code summary (ICU, Medical, Surgical)
+patients_per_activity_text <- data_deps %>%
+  group_by(`Activity code`) %>%
+  summarise(Patients = sum(Patients, na.rm = TRUE), .groups = "drop") %>%
+  mutate(
+    Summary = sprintf("Activity Code: <strong>%s (%s)</strong> has <strong>%d</strong> patients.", `Activity code`,
+                      case_when(
+                        `Activity code` == "IC" ~ "ICU",
+                        `Activity code` == "S" ~ "Surgical",
+                        `Activity code` == "M" ~ "Medical",
+                        TRUE ~ "Unknown"
+                      ), Patients)
+  ) %>%
+  pull(Summary) %>%
+  paste(collapse = "\n")
+
+# summarise total treated patients in the hospital
+total_treated_text <- sprintf(
+  "The total number of treated patients in the hospital is <strong>%d</strong>.", 
+  sum(data_deps$`Treated patients`, na.rm = TRUE)
+)
+
+# Treated patients per Department Type summary
+treated_per_department_text <- data_deps %>%
+  group_by(`Department type`) %>%
+  summarise(Treated_Patients = sum(`Treated patients`, na.rm = TRUE), .groups = "drop") %>%
+  mutate(
+    Summary = sprintf("Department Type: <strong>%s</strong> has <strong>%d</strong> treated patients.", `Department type`, Treated_Patients)
+  ) %>%
+  pull(Summary) %>%
+  paste(collapse = "\n")
+
+# Treated patients per Activity Code summary (ICU, Medical, Surgical)
+treated_per_activity_text <- data_deps %>%
+  group_by(`Activity code`) %>%
+  summarise(Treated_Patients = sum(`Treated patients`, na.rm = TRUE), .groups = "drop") %>%
+  mutate(
+    Summary = sprintf("Activity Code: <strong>%s (%s)</strong> has <strong>%d</strong> treated patients.", `Activity code`,
+                      case_when(
+                        `Activity code` == "I" ~ "ICU",
+                        `Activity code` == "S" ~ "Surgical",
+                        `Activity code` == "M" ~ "Medical",
+                        TRUE ~ "Unknown"
+                      ), Treated_Patients)
+  ) %>%
+  pull(Summary) %>%
+  paste(collapse = "\n")
+
+
+# Convert text blocks into HTML bullet lists
+admit_dept_html <- paste0("<li>", strsplit(patients_per_department_text, "\n")[[1]], "</li>", collapse = "")
+admit_activity_html <- paste0("<li>", strsplit(patients_per_activity_text, "\n")[[1]], "</li>", collapse = "")
+treat_dept_html <- paste0("<li>", strsplit(treated_per_department_text, "\n")[[1]], "</li>", collapse = "")
+treat_activity_html <- paste0("<li>", strsplit(treated_per_activity_text, "\n")[[1]], "</li>", collapse = "")
+
+# Create styled HTML boxes
+html_summary <- glue::glue(
+  "<div style='background-color:#f8f9fa; border-left:5px solid #17a2b8; padding:15px; margin-bottom:20px; border-radius:5px;'>
+    <h4 style='margin-top:0;'>🛌 <strong>Admitted Patients Summary</strong></h4>
+    <p>{total_patients_text}</p>
+    <strong>By Department type:</strong>
+    <ul style='margin-top: 5px;'>{admit_dept_html}</ul>
+    <strong>By Activity Type:</strong>
+    <ul>{admit_activity_html}</ul>
+  </div>
+
+  <div style='background-color:#f8f9fa; border-left:5px solid #76a5af; padding:15px; margin-bottom:20px; border-radius:5px;'>
+    <h4 style='margin-top:0;'>💉 <strong>Treated Patients Summary</strong></h4>
+    <p>{total_treated_text}</p>
+    <strong>By Department type:</strong>
+    <ul style='margin-top: 5px;'>{treat_dept_html}</ul>
+    <strong>By Activity Type:</strong>
+    <ul>{treat_activity_html}</ul>
+  </div>"
+)
+
+# Render output
+htmltools::HTML(html_summary)
+
+```
+
+***
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+💊 Overview of Antimicrobial Prescription</h1>
+
+
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+
+# Function to calculate patient metrics
+calculate_patient_metrics <- function(dataset) {
+  bind_rows(
+    dataset %>% summarise(Metric = "Total Patients Given **Antimicrobials**", Count = n_distinct(`Survey Number`)),
+    dataset %>% filter(AWaRe %in% AWaRe_abx) %>%
+      summarise(Metric = "Total Patients Given **Antibiotics**", Count = n_distinct(`Survey Number`)),
+    dataset %>% group_by(`Department type`) %>%
+      summarise(Metric = "Patients Given **Antibiotics**", Count = n_distinct(`Survey Number`), .groups = "drop"),
+    
+    dataset %>% filter(grepl("Access", AWaRe, ignore.case = TRUE)) %>%
+      summarise(Metric = "Patients Given **Access** Antibiotics", Count = n_distinct(`Survey Number`)),
+    dataset %>% filter(grepl("Access", AWaRe, ignore.case = TRUE)) %>%
+      group_by(`Department type`) %>%
+      summarise(Metric = "Patients Given **Access** Antibiotics", Count = n_distinct(`Survey Number`), .groups = "drop"),
+    
+    dataset %>% filter(grepl("Watch", AWaRe, ignore.case = TRUE)) %>%
+      summarise(Metric = "Patients Given **Watch** Antibiotics", Count = n_distinct(`Survey Number`)),
+    dataset %>% filter(grepl("Watch", AWaRe, ignore.case = TRUE)) %>%
+      group_by(`Department type`) %>%
+      summarise(Metric = "Patients Given **Watch** Antibiotics", Count = n_distinct(`Survey Number`), .groups = "drop"),
+
+    dataset %>% filter(grepl("Reserve", AWaRe, ignore.case = TRUE)) %>%
+      summarise(Metric = "Patients Given **Reserve** Antibiotics", Count = n_distinct(`Survey Number`)),
+    dataset %>% filter(grepl("Reserve", AWaRe, ignore.case = TRUE)) %>%
+      group_by(`Department type`) %>%
+      summarise(Metric = "Patients Given **Reserve** Antibiotics", Count = n_distinct(`Survey Number`), .groups = "drop"),
+
+    dataset %>% filter(grepl("Not recommended", AWaRe, ignore.case = TRUE)) %>%
+      summarise(Metric = "Patients Given **Not Recommended** Antibiotics", Count = n_distinct(`Survey Number`)),
+    dataset %>% filter(grepl("Not recommended", AWaRe, ignore.case = TRUE)) %>%
+      group_by(`Department type`) %>%
+      summarise(Metric = "Patients Given **Not Recommended** Antibiotics", Count = n_distinct(`Survey Number`), .groups = "drop")
+  ) %>%
+    rename(Ward = `Department type`) %>%
+    mutate(Ward = replace_na(Ward, "Hospital-Wide"))
+}
+
+# Function to calculate prescription metrics
+calculate_prescription_metrics <- function(dataset) {
+  bind_rows(
+    dataset %>% summarise(Metric = "Total **Antimicrobial** Prescriptions", Count = n()),
+    dataset %>% filter(AWaRe %in% AWaRe_abx) %>%
+      summarise(Metric = "Total **Antibiotics** Prescriptions", Count = n()),
+    dataset %>% group_by(`Department type`) %>%
+      summarise(Metric = "Total **Antibiotics** Prescriptions", Count = n(), .groups = "drop"),
+    
+    dataset %>% filter(grepl("Access", AWaRe, ignore.case = TRUE)) %>%
+      summarise(Metric = "**Access** Antibiotics", Count = n()),
+    dataset %>% filter(grepl("Access", AWaRe, ignore.case = TRUE)) %>%
+      group_by(`Department type`) %>%
+      summarise(Metric = "**Access** Antibiotics", Count = n(), .groups = "drop"),
+    
+    dataset %>% filter(grepl("Watch", AWaRe, ignore.case = TRUE)) %>%
+      summarise(Metric = "**Watch** Antibiotics", Count = n()),
+    dataset %>% filter(grepl("Watch", AWaRe, ignore.case = TRUE)) %>%
+      group_by(`Department type`) %>%
+      summarise(Metric = "**Watch** Antibiotics", Count = n(), .groups = "drop"),
+
+    dataset %>% filter(grepl("Reserve", AWaRe, ignore.case = TRUE)) %>%
+      summarise(Metric = "**Reserve** Antibiotics", Count = n()),
+    dataset %>% filter(grepl("Reserve", AWaRe, ignore.case = TRUE)) %>%
+      group_by(`Department type`) %>%
+      summarise(Metric = "**Reserve** Antibiotics", Count = n(), .groups = "drop"),
+
+    dataset %>% filter(grepl("Not recommended", AWaRe, ignore.case = TRUE)) %>%
+      summarise(Metric = "**Not Recommended** Antibiotics", Count = n()),
+    dataset %>% filter(grepl("Not recommended", AWaRe, ignore.case = TRUE)) %>%
+      group_by(`Department type`) %>%
+      summarise(Metric = "**Not Recommended** Antibiotics", Count = n(), .groups = "drop")
+  ) %>%
+    rename(Ward = `Department type`) %>%
+    mutate(Ward = replace_na(Ward, "Hospital-Wide"))
+}
+
+# --- ANALYSIS ---
+
+# Filtered dataset (adults with CAI/SP diagnosis, empirical treatment)
+filtered_data_patients <- data_patients %>%
+  filter(
+    `Diagnosis code` %in% c("SEPSIS", "CNS", "Pneu", "IA", "Pye", "SST", "BJ", "Proph"),
+    Indication %in% c("CAI", "SP1", "SP2", "SP3"),
+    Treatment == "EMPIRICAL",
+    `Age years` >= 18
+  )
+
+# Compute metrics
+summary_patients_full <- calculate_patient_metrics(data_patients)
+summary_patients_filtered <- calculate_patient_metrics(filtered_data_patients)
+
+summary_prescriptions_full <- calculate_prescription_metrics(data_patients)
+summary_prescriptions_filtered <- calculate_prescription_metrics(filtered_data_patients)
+
+# Merge full and filtered summaries
+summary_patients <- full_join(summary_patients_full, summary_patients_filtered, by = c("Metric", "Ward"), suffix = c("_Full", "_Filtered")) %>%
+  rename("Total patients" = Count_Full, "Patients for QIs-related groups" = Count_Filtered) %>%
+  relocate(Ward, .after = Metric) %>%
+  mutate(
+    `Patients for QIs-related groups` = replace_na(`Patients for QIs-related groups`, 0),
+    Ward = factor(Ward, levels = c("Hospital-Wide", sort(unique(Ward[Ward != "Hospital-Wide"]))))
+  ) %>%
+  arrange(Ward)
+
+
+summary_prescriptions <- full_join(summary_prescriptions_full, summary_prescriptions_filtered, by = c("Metric", "Ward"), suffix = c("_Full", "_Filtered")) %>%
+  rename("Total prescriptions" = Count_Full, "Prescriptions for QIs-related groups" = Count_Filtered) %>%
+  relocate(Ward, .after = Metric) %>%
+  mutate(
+    `Prescriptions for QIs-related groups` = replace_na(`Prescriptions for QIs-related groups`, 0),
+    Ward = factor(Ward, levels = c("Hospital-Wide", sort(unique(Ward[Ward != "Hospital-Wide"]))))
+  ) %>%
+  arrange(Ward)
+
+```
+
+
+***
+
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📄 Patient-level Summary by Ward </h2>
+
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+summary_patients %>%
+  knitr::kable(caption = "",
+               format = "html") %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    font_size = 14
+  )
+
+```
+
+
+
+
+***
+<h2 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📄 Prescription-level Summary by Ward </h2>
+
+```{r echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE, error=FALSE}
+summary_prescriptions %>%
+  knitr::kable(caption = "",
+               format = "html") %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    font_size = 14
+  )
+
+```
+
+<div style='background-color: #f8f9fa; padding: 10px; border-left: 5px solid #17a2b8;'>
+  <strong>💡 Note:</strong> The AWaRe classification divides antibiotics into three categories: Access, Watch, and Reserve. Access antibiotics are first-line treatments with a low risk of resistance, typically recommended for common infections. Watch antibiotics are associated with a higher risk of resistance and require careful monitoring. Reserve antibiotics are reserved for critical cases involving resistant infections, typically used only when other options are ineffective </strong>.
+  <br>
+</div>
+
+<div style="background-color: #f8f9fa; border-left: 6px solid #17a2b8; padding: 12px; margin-top: 20px; margin-bottom: 20px;">
+  <strong>💡 Note:</strong> "Patients/Prescriptions for QI-related groups" refers specifically to patients or prescriptions involving <strong>empiric antibiotics</strong> for any of the <strong>eight pre-defined conditions</strong>.
+  <br>
+</div>
+
+
+
+***
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈 Antibiotic Prescriptions by Diagnostic Group </h1>
+
+
+This plot provides a general summary of antibiotic prescriptions across pre-defined diagnostic groups, regardless of age, indication, or type of treatment
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6}
+
+# AWaRe stacking order
+aware_levels_stack <- c("UNCLASSIFIED", "NOT RECOMMENDED", "RESERVE", "WATCH", "ACCESS")
+aware_levels_legend <- c("ACCESS", "WATCH", "RESERVE", "NOT RECOMMENDED", "UNCLASSIFIED")
+
+
+# All combinations of Diagnosis × AWaRe
+all_combos <- expand_grid(
+  `Diagnosis code` = names(diagnostic_labels),
+  AWaRe = aware_levels_stack
+)
+
+# Summarise prescriptions
+aware_summary <- data_patients %>%
+  filter(`Diagnosis code` %in% names(diagnostic_labels)) %>%
+  filter(!is.na(`AWaRe`), !is.na(`Diagnosis code`)) %>%
+  group_by(`Diagnosis code`, AWaRe) %>%
+  summarise(Prescriptions = n(), .groups = "drop") %>%
+  right_join(all_combos, by = c("Diagnosis code", "AWaRe")) %>%
+  mutate(Prescriptions = replace_na(Prescriptions, 0)) %>%
+  group_by(`Diagnosis code`) %>%
+  mutate(
+    Total = sum(Prescriptions),
+    Percentage = if_else(Total > 0, 100 * Prescriptions / Total, 0)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    FriendlyLabel = diagnostic_labels[`Diagnosis code`],
+    FriendlyLabel = factor(FriendlyLabel, levels = diagnostic_labels)
+  )
+
+# Set factor level order for fill
+aware_summary$AWaRe <- factor(aware_summary$AWaRe, levels = aware_levels_stack)
+
+# Create plot
+ggplot(aware_summary, aes(x = fct_rev(FriendlyLabel), y = Percentage / 100, fill = AWaRe)) +
+
+  geom_bar(stat = "identity", position = "fill", width = 0.85) +
+
+  geom_text(
+    aes(label = ifelse(Percentage >= 5, paste0(round(Percentage), "%"), "")),
+    position = position_fill(vjust = 0.5),
+    size = 3.5, color = "black"
+  ) +
+
+  geom_text(
+    data = aware_summary %>%
+      group_by(FriendlyLabel) %>%
+      summarise(Total = max(Total), .groups = "drop"),
+    aes(x = FriendlyLabel, y = 1.02, label = paste0("n=", Total)),
+    inherit.aes = FALSE,
+    size = 3.5,
+    color = "gray30",
+    hjust = 0
+  ) +
+
+  scale_fill_manual(
+    breaks = aware_levels_legend,
+    values = c(
+      "ACCESS" = "#1b9e77",
+      "WATCH" = "#ff7f00",
+      "RESERVE" = "#e41a1c",
+      "NOT RECOMMENDED" = "#8c510a",
+      "UNCLASSIFIED" = "gray70"
+    ),
+    drop = FALSE
+  ) +
+
+  coord_flip(ylim = c(0, 1.04)) +
+
+  labs(
+    title = "Use of Antibiotics by Diagnosis Group (AWaRe Classification)",
+    subtitle = "Percentages shown within bars; n = total prescriptions",
+    x = "Diagnosis Group",
+    y = "Proportion of Prescriptions",
+    fill = "AWaRe Category"
+  ) +
+
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5, size = 10, color = "gray30"),
+    panel.border = element_rect(color = "gray70", fill = NA),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold", size = 12),
+    axis.text.y = element_text(face = "bold", size = 10),
+    plot.margin = margin(10, 80, 10, 10)
+  ) +
+  guides(fill = guide_legend(nrow = 3))
+
+
+```
+
+
+***
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈  Patient Antibiotic Prescriptions by Diagnosis & Department </h1>
+
+
+This plot provides a general summary of patient-level antibiotic prescriptions for pre-defined diagnostic groups and across different departments, regardless of age, indication, or type of treatment
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6}
+
+# AWaRe levels and colors
+aware_levels <- c("Access", "Watch", "Reserve")
+color_mapping <- c("Access" = "#238b45", "Watch" = "#FF8000", "Reserve" = "firebrick1")
+
+
+# Lookup for labels
+diagnostic_lookup <- tibble(
+  `Diagnosis code` = names(diagnostic_labels),
+  FriendlyLabel = unname(diagnostic_labels)
+)
+
+# Total patients per diagnosis (including 0s)
+infection_totals <- data_patients %>%
+  filter(`Diagnosis code` %in% names(diagnostic_labels)) %>%
+  group_by(`Diagnosis code`) %>%
+  summarise(Total_Infection_Patients = n(), .groups = "drop") %>%
+  right_join(diagnostic_lookup, by = "Diagnosis code") %>%
+  mutate(Total_Infection_Patients = replace_na(Total_Infection_Patients, 0))
+
+# Step 1: Department-level data
+dept_data <- data_patients %>%
+  filter(`Diagnosis code` %in% names(diagnostic_labels)) %>%
+  mutate(
+    Antibiotic_Type = case_when(
+      AWaRe == "ACCESS" ~ "Access",
+      AWaRe == "WATCH" ~ "Watch",
+      AWaRe == "RESERVE" ~ "Reserve",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(Antibiotic_Type)) %>%
+  group_by(`Department type`, `Diagnosis code`, Antibiotic_Type) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# Step 2: Add Hospital-Wide totals
+hospital_data <- dept_data %>%
+  group_by(`Diagnosis code`, Antibiotic_Type) %>%
+  summarise(Count = sum(Count), .groups = "drop") %>%
+  mutate(`Department type` = "Hospital-Wide")
+
+# Combine ward + hospital
+heatmap_data <- bind_rows(dept_data, hospital_data)
+
+# Create all possible combinations
+all_combos <- expand_grid(
+  `Department type` = unique(heatmap_data$`Department type`),
+  `Diagnosis code` = names(diagnostic_labels),
+  Antibiotic_Type = aware_levels
+)
+
+# Merge with observed data, fill 0s
+heatmap_data <- all_combos %>%
+  left_join(heatmap_data, by = c("Department type", "Diagnosis code", "Antibiotic_Type")) %>%
+  mutate(Count = replace_na(Count, 0))
+
+# Add Friendly labels and totals
+heatmap_data <- heatmap_data %>%
+  left_join(infection_totals, by = "Diagnosis code") %>%
+  mutate(
+    FriendlyLabel_n = paste0(FriendlyLabel, "\n(n=", Total_Infection_Patients, ")"),
+    FriendlyLabel_n = factor(
+      FriendlyLabel_n,
+      levels = paste0(
+        unname(diagnostic_labels),
+        "\n(n=", infection_totals$Total_Infection_Patients[match(names(diagnostic_labels), infection_totals$`Diagnosis code`)], ")"
+      )
+    ),
+    Antibiotic_Type = factor(Antibiotic_Type, levels = aware_levels),
+    Label = ifelse(Count > 0, as.character(Count), "")
+  )
+
+# Format department names (with Hospital-Wide styled)
+heatmap_data <- heatmap_data %>%
+  mutate(
+    `Department type` = ifelse(`Department type` == "Hospital-Wide",
+                               "<span style='color:#0072B2'><b>Hospital-Wide</b></span>",
+                               `Department type`),
+    `Department type` = factor(`Department type`, levels = unique(`Department type`)),
+    `Department type` = fct_relevel(`Department type`, "<span style='color:#0072B2'><b>Hospital-Wide</b></span>")
+  )
+
+# Plot
+ggplot(heatmap_data, aes(x = `Department type`, y = FriendlyLabel_n, fill = Antibiotic_Type)) +
+  geom_tile(aes(alpha = Count), color = "white", size = 0.5) +
+  geom_text(aes(label = Label), size = 3.5, fontface = "bold", color = "black") +
+  facet_wrap(~Antibiotic_Type, ncol = 3) +
+  scale_fill_manual(values = color_mapping) +
+  scale_alpha_continuous(
+    limits = c(0, max(heatmap_data$Count, na.rm = TRUE)),
+    range = c(0.1, 1)
+  ) +
+  labs(
+    title = "Distribution of Patients Receiving Antibiotics by Diagnostic Group",
+    subtitle = "Access, Watch, Reserve antibiotics across hospital and wards",
+    x = "Ward",
+    y = "Infection Type",
+    fill = "AWaRe Group"
+  ) +
+  theme_minimal(base_size = 12) +
+theme(
+    axis.text.x = ggtext::element_markdown(angle = 30, hjust = 1, size = 9),
+    axis.text.y = element_text(size = 9, face = "bold"),
+    strip.background = element_rect(fill = "black"),
+    strip.text = element_text(color = "white", face = "bold"),
+    panel.grid = element_blank(),
+    legend.position = "right"
+  )
+
+```
+
+
+<div style='background-color: #f8f9fa; padding: 10px; border-left: 5px solid #17a2b8;'>
+  <strong>💡 Notes:</strong>
+  <ul>
+    <li>Counts patients prescribed at least one antimicrobial for each diagnosis.</li>
+    <li>Patients may appear multiple times if they had multiple infections (same as the Global PPS standard).</li>
+    <li>Patients can appear in multiple AWaRe categories if prescribed multiple types (e.g., both Access and Watch).</li>
+  </ul>
+</div>
+
+
+***
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈 Treatment & Indication Patterns Across Age </h1>
+
+This heatmap summarises the distribution across treatment types (empirical, targeted) and indications (CAI, HAI), separated by age groups.
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6}
+
+# Define HAI diagnostic codes
+HAI_terms <- c("HAI1", "HAI2", "HAI2-CVC-BSI", "HAI2-PVC-BSI", "HAI2-VAP", "HAI2-CAUTI",
+               "HAI3", "HAI4", "HAI4-BSI", "HAI4-HAP", "HAI4-UTI", "HAI5", "HAI6")
+
+# Define fixed categories to force presence in heatmap
+expected_indications <- c("CAI", "HAI")
+expected_age_groups <- c("Children", "Adult")
+expected_treatments <- c("EMPIRICAL", "TARGETED")
+
+# Prepare patient-level data
+patient_level_data <- data_patients %>%
+  filter(Indication %in% c("CAI", HAI_terms)) %>%
+  filter(Treatment %in% c("EMPIRICAL", "TARGETED")) %>%
+  filter(AWaRe %in% AWaRe_abx) %>%
+  mutate(
+    AgeGroup = ifelse(`Age years` < 18, "Children", "Adult"),
+    Indication = ifelse(Indication %in% HAI_terms, "HAI", Indication),
+    Treatment = factor(Treatment, levels = expected_treatments)
+  ) %>%
+  distinct(`Survey Number`, Indication, Treatment, AgeGroup)
+
+# Create all combinations (ensures missing combinations are included as 0s)
+all_combinations <- expand.grid(
+  Indication = expected_indications,
+  AgeGroup = expected_age_groups,
+  Treatment = factor(expected_treatments, levels = expected_treatments),
+  stringsAsFactors = FALSE
+)
+
+# Count patients and merge with all combinations
+summary_table_QIs <- all_combinations %>%
+  left_join(
+    patient_level_data %>%
+      group_by(Indication, AgeGroup, Treatment) %>%
+      summarise(Patients = n(), .groups = "drop"),
+    by = c("Indication", "AgeGroup", "Treatment")
+  ) %>%
+  mutate(Patients = replace_na(Patients, 0))
+
+# Prepare data for heatmap
+heatmap_data <- summary_table_QIs %>%
+  pivot_wider(names_from = Treatment, values_from = Patients, values_fill = 0) %>%
+  pivot_longer(cols = expected_treatments, names_to = "Treatment", values_to = "Patients") %>%
+  mutate(
+    Treatment = factor(Treatment, levels = expected_treatments),
+    Indication = factor(Indication, levels = expected_indications),
+    AgeGroup = factor(AgeGroup, levels = expected_age_groups)
+  )
+
+# Plot the heatmap
+ggplot(heatmap_data, aes(x = Treatment, y = Indication, fill = Patients)) +
+  geom_tile(color = "gray70", size = 0.5) +
+  geom_text(aes(label = Patients), color = "black", size = 7, fontface = "bold") +
+  facet_wrap(~ AgeGroup) +
+  scale_fill_gradient(low = "#dceeff", high = "#004488", guide = "none") +
+  labs(
+    title = "Patient Distribution by Treatment, Indication and Age Group",
+    x = "Treatment Type",
+    y = "Indication"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    axis.text = element_text(size = 12),
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+
+```
+
+
+<div style='background-color: #f8f9fa; padding: 10px; border-left: 5px solid #17a2b8;'>
+  <strong>💡 Note:</strong> This analysis focuses on <strong>adult patients</strong> receiving <strong>empiric antibiotic therapy</strong> for <strong>CAIs</strong>.
+  <br>
+</div>
+
+
+
+***
+
+<h1 style="color: #4a4a4a; font-weight: bold; margin-top: 1.5em;">
+📈 Age-Specific Patterns in Prophylaxis Indications </h1>
+
+This section summarises prophylaxis indications (Surgical, Medical, Other, Unknown) across adult and pediatric patients.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.height=6}
+
+# Define SP terms
+SP_prophylaxis_terms <- c("SP1", "SP2", "SP3")
+
+# Define fixed factor levels
+expected_age_groups <- c("Children", "Adult")
+expected_indications <- c("SP", "MP", "OTH", "UNK")
+
+# Prepare and clean data
+proph_summary_data <- data_patients %>%
+  filter(Treatment == "EMPIRICAL") %>%
+  filter(AWaRe %in% AWaRe_abx) %>%
+  mutate(
+    AgeGroup = ifelse(`Age years` < 18, "Children", "Adult"),
+    Indication = case_when(
+      toupper(Indication) %in% SP_prophylaxis_terms ~ "SP",
+      TRUE ~ toupper(Indication)
+    ),
+    Indication = factor(Indication, levels = expected_indications),
+    AgeGroup = factor(AgeGroup, levels = expected_age_groups)
+  ) %>%
+  filter(!is.na(Indication)) %>%
+  distinct(`Survey Number`, Indication, AgeGroup)
+
+# summarise and complete missing categories
+proph_summary_counts <- proph_summary_data %>%
+  group_by(AgeGroup, Indication) %>%
+  summarise(Patients = n(), .groups = 'drop') %>%
+  complete(AgeGroup = expected_age_groups,
+           Indication = expected_indications,
+           fill = list(Patients = 0))
+
+# Calculate total patients per age group
+group_totals <- proph_summary_counts %>%
+  group_by(AgeGroup) %>%
+  summarise(GroupTotal = sum(Patients), .groups = 'drop')
+
+# Merge and calculate proportions safely
+proph_prop <- proph_summary_counts %>%
+  left_join(group_totals, by = "AgeGroup") %>%
+  mutate(
+    Proportion = ifelse(GroupTotal == 0, 0, Patients / GroupTotal),
+    Indication = factor(Indication, levels = expected_indications)  # Force final level order again
+  )
+
+# Plot
+ggplot(proph_prop, aes(x = AgeGroup, y = Proportion, fill = Indication)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.7) +
+  geom_text(
+    aes(label = ifelse(Patients > 0, Patients, "")),
+    position = position_fill(vjust = 0.5),
+    size = 5,
+    fontface = "bold",
+    color = "black"
+  ) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_fill_manual(
+    values = c(
+      "SP"  = "#4e79a7",  # bluish for Surgical Prophylaxis
+      "MP"  = "#9ecae1",  # lighter blue for Medical Prophylaxis
+      "OTH" = "#59a14f",  # green for Other
+      "UNK" = "#a1d99b"   # light green for Unknown
+    ),
+    labels = c(
+      "SP"  = "Surgical Prophylaxis",
+      "MP"  = "Medical Prophylaxis",
+      "OTH" = "Other Prophylaxis",
+      "UNK" = "Unknown Indication"
+    ),
+    drop = FALSE
+  ) +
+  coord_flip() +
+  labs(
+    title = "Prophylactic Antibiotic Use Across Age Groups",
+    x = "Age Group",
+    y = "Proportion of Patients",
+    fill = "Indication"
+  ) +
+  theme_bw(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 10),
+    axis.title.y = element_text(face = "bold"),
+    axis.title.x = element_text(face = "bold"),
+    axis.text.y = element_text(face = "bold", size = 10),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold")
+  )
+
+```
+
+<div style='background-color: #f8f9fa; padding: 10px; border-left: 5px solid #17a2b8;'>
+  <strong>💡 Note:</strong> This analysis further includes <strong>adult patients</strong> receiving <strong>empiric antibiotics</strong> for the sole purpose of <strong>surgical prophylaxis</strong>, thereby excluding other prophylactics.
+  <br>
+</div>
+
